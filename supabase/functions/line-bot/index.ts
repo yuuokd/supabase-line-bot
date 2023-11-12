@@ -7,14 +7,41 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 console.log("Hello from Functions!")
 
 serve(async (req) => {
-  const { name } = await req.json()
-  const seacret_variable = Deno.env.get('MY_NAME')
-  const data = {
-    message: `Hello ${name}!`,
-  }
+  const { name, events } = await req.json()
+  console.log(events)
+  if (events && events[0].type === "message") {
+    // 文字列化したメッセージデータ
+    const dataString = JSON.stringify({
+      replyToken: events[0].replyToken,
+      messages: [
+        {
+          "type": "text",
+          "text": "Hello, user"
+        },
+        {
+          "type": "text",
+          "text": "May I help you?"
+        }
+      ]
+    })
 
+    // リクエストヘッダー
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')
+    }
+
+    // https://developers.line.biz/ja/docs/messaging-api/nodejs-sample/#send-reply
+    fetch('https://api.line.me/v2/bot/message/reply',
+      {
+        method: "POST",
+        body: dataString,
+        headers: headers,
+      }
+    )
+  }
   return new Response(
-    JSON.stringify(data),
+    JSON.stringify({status: 'ok'}),
     { headers: { "Content-Type": "application/json" } },
   )
 })
