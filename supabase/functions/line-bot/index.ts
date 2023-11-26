@@ -3,26 +3,29 @@
 // This enables autocomplete, go to definition, etc.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-
-console.log("Hello from Functions!")
+import { quizSelect } from "./quiz"
 
 serve(async (req) => {
   const { name, events } = await req.json()
   console.log(events)
   if (events && events[0].type === "message") {
     // 文字列化したメッセージデータ
+    let messages = [
+      {
+        "type": "text",
+        "text": "Hello, user"
+      },
+      {
+        "type": "text",
+        "text": "May I help you?"
+      }
+    ]
+    if (events[0].message.text) {
+      messages = quizSelect()
+    }
     const dataString = JSON.stringify({
       replyToken: events[0].replyToken,
-      messages: [
-        {
-          "type": "text",
-          "text": "Hello, user"
-        },
-        {
-          "type": "text",
-          "text": "May I help you?"
-        }
-      ]
+      messages: messages
     })
 
     // リクエストヘッダー
