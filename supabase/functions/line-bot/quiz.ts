@@ -1,6 +1,9 @@
+export const quizSelect = async(supabaseClient) => {
+    const { data, error } = await supabaseClient.from('quiz').select('*')
+    console.log({data, error})
+    const replyText = `${data[0].body} / ${data[0].answer}`
 
-export const quizSelect = () => {
-    const contents = [{
+    const contents = {
         "type": "bubble",
         "hero": {
           "type": "image",
@@ -151,8 +154,14 @@ export const quizSelect = () => {
           ],
           "flex": 0
         }
-      }]
-    return [flexMessage(contents)]
+      }
+    return [
+        flexMessage(contents),
+        {
+            "type": "text",
+            "text": replyText
+        }
+    ]
 }
 
 const flexMessage = (contents) => {
