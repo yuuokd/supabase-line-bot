@@ -3,13 +3,14 @@
 // This enables autocomplete, go to definition, etc.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { quizSelect } from "./quiz.ts"
+import { selectQuiz } from "./selectQuiz.ts"
 import { supabaseClient } from './supabaseClient.ts'
+import { Quiz } from "./quiz.ts"
 
 serve(async (req) => {
   const { name, events } = await req.json()
   console.log(events)
-  if (events && events[0].type === "message") {
+  if (events && events[0]?.type === "message") {
     // 文字列化したメッセージデータ
     let messages:any = [
       {
@@ -22,7 +23,15 @@ serve(async (req) => {
       }
     ]
     if (events[0].message.text === 'quiz') {
-      messages = await quizSelect(supabaseClient(req))
+      messages = await selectQuiz(supabaseClient(req))
+    }
+    // MEMO:
+    // 送られたメッセージの中に `/` が含まれている場合は文字列を分割して保存する
+    if (events[0].message.text.match(/\//g)) {
+      const [body, answer] = events[0].message.text.split('/')
+      const quiz = new Quiz({body, answer})
+      await quiz.saveToSupabase(supabaseClient(req))
+      messages = quiz.savedMessages()
     }
     console.log({reply: messages})
     const dataString = JSON.stringify({
