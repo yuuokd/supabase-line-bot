@@ -6,7 +6,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { selectQuiz } from "./selectQuiz.ts"
 import { supabaseClient } from './supabaseClient.ts'
 import { Quiz } from "./quiz.ts"
-import { confirmMessage } from './messages.ts'
+import { confirmMessage, replyMessage } from './messages.ts'
+import { getRandomNumbers } from './lib.ts'
 
 serve(async (req) => {
   const { name, events } = await req.json()
@@ -57,57 +58,36 @@ serve(async (req) => {
   //   .catch(e => { console.log(e) })
   // }
   if (events && events[0]?.type === "message") {
-
     const messages = [
-      confirmMessage()
+      confirmMessage({list: getRandomNumbers(100), count: 0})
     ]
-    const dataString = JSON.stringify({
-      replyToken: events[0].replyToken,
-      messages: messages
-    })
-
-    // リクエストヘッダー
-    const headers = {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')
-    }
-
-    // https://developers.line.biz/ja/docs/messaging-api/nodejs-sample/#send-reply
-    fetch('https://api.line.me/v2/bot/message/reply',
-      {
-        method: "POST",
-        body: dataString,
-        headers: headers,
-      }
-    ).then(r => {console.log(r)})
-    .catch(e => { console.log(e) })
+    replyMessage(events, messages)
   }
   if (events && events[0]?.type === "postback") {
-    const dataString = JSON.stringify({
-      replyToken: events[0].replyToken,
-      messages: [
-        {
-          "type": "text",
-          "text": `data：${events[0].postback.data}`
-        }
-      ]
-    })
-
-    // リクエストヘッダー
-    const headers = {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')
+    const postbackMessages = [
+      {
+        "type": "text",
+        "text": `data：${events[0].postback.data}`
+      }
+    ]
+    const postbackData = JSON.parse(events[0].postback.data)
+    let count = postbackData.count
+    let list = postbackData.list;
+    if(postbackData.list.length <= parseInt(postbackData.count)) {
+      count = 0;
+      list = getRandomNumbers(100)
     }
 
-    // https://developers.line.biz/ja/docs/messaging-api/nodejs-sample/#send-reply
-    fetch('https://api.line.me/v2/bot/message/reply',
+    const messages = [
+      ...postbackMessages,
       {
-        method: "POST",
-        body: dataString,
-        headers: headers,
-      }
-    ).then(r => {console.log(r)})
-    .catch(e => { console.log(e) })
+        "type": "text",
+        "text": `now：${list[count]}, count: ${count}, list: ${list}`
+      },
+      confirmMessage({...postbackData, count: count + 1, list})
+    ]
+    console.log(messages)
+    replyMessage(events, messages)
   }
   return new Response(
     JSON.stringify({status: 'ok'}),
