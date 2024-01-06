@@ -163,7 +163,6 @@ export const selectQuiz = async(supabaseClient) => {
         }
     ]
 }
-
 const flexMessage = (contents) => {
     return {
         "type": "flex",

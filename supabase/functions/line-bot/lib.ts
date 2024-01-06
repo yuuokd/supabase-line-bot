@@ -21,3 +21,9 @@ function shuffle(array) {
 
     return array;
 }
+
+export const fetchRandom10QuizIds = async(supabaseClient) => {
+    const { data, error } = await supabaseClient.from('quiz').select('body,answer')
+    return shuffle(data).slice(0, 10)
+}
+  

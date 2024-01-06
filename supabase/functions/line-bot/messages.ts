@@ -1,15 +1,15 @@
 
-export const confirmMessage = (data?) => {
+export const confirmMessage = (body, data?) => {
   return {
     "type": "template",
     "altText": "this is a confirm template",
     "template": {
       "type": "buttons",
-      "text": "Are you sure?",
+      "text": `「${body}」`,
       "actions": [
         {
           "type": "postback",
-          "label": "Yes",
+          "label": "答えを見る",
           "inputOption": "openRichMenu",
           "data": JSON.stringify(data || {action: 'buy', itemid: 111, list: []}),
         }

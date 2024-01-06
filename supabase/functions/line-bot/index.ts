@@ -3,63 +3,77 @@
 // This enables autocomplete, go to definition, etc.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { selectQuiz } from "./selectQuiz.ts"
 import { supabaseClient } from './supabaseClient.ts'
 import { Quiz } from "./quiz.ts"
 import { confirmMessage, replyMessage } from './messages.ts'
-import { getRandomNumbers } from './lib.ts'
+import { getRandomNumbers, fetchRandom10QuizIds } from './lib.ts'
 
 serve(async (req) => {
   const { name, events } = await req.json()
   console.log(events)
+  // if (events && events[0]?.type === "message") {
+  //   // 文字列化したメッセージデータ
+  //   let messages:any = [
+  //     {
+  //       "type": "text",
+  //       "text": "Hello, user"
+  //     },
+  //     {
+  //       "type": "text",
+  //       "text": "May I help you?"
+  //     }
+  //   ]
+  //   if (events[0].message.text === 'スタート') {
+  //     // クイズを開始する
+  //     messages = [
+  //       {
+  //         "type": "text",
+  //         "text": "問題を始めるよ！"
+  //       },
+  //       confirmMessage({list: getRandomNumbers(100)})
+  //     ]
+  //   } else if (events[0].message.text.match(/\//g)) {
+  //     // MEMO:
+  //     // 送られたメッセージの中に `/` が含まれている場合は文字列を分割して保存する
+  //     const [body, answer] = events[0].message.text.split('/')
+  //     const quiz = new Quiz({body, answer})
+  //     await quiz.saveToSupabase(supabaseClient(req))
+  //     messages = quiz.savedMessages()
+  //   }
+  //   console.log({reply: messages})
+  //   const dataString = JSON.stringify({
+  //     replyToken: events[0].replyToken,
+  //     messages: messages
+  //   })
+
+  //   // リクエストヘッダー
+  //   const headers = {
+  //     "Content-Type": "application/json",
+  //     "Authorization": "Bearer " + Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')
+  //   }
+
+  //   // https://developers.line.biz/ja/docs/messaging-api/nodejs-sample/#send-reply
+  //   fetch('https://api.line.me/v2/bot/message/reply',
+  //     {
+  //       method: "POST",
+  //       body: dataString,
+  //       headers: headers,
+  //     }
+  //   ).then(r => {console.log(r)})
+  //   .catch(e => { console.log(e) })
+  // }
   if (events && events[0]?.type === "message") {
-    // 文字列化したメッセージデータ
-    let messages:any = [
+    const quizList = await fetchRandom10QuizIds(supabaseClient(req))
+    const messages = [
       {
         "type": "text",
-        "text": "Hello, user"
+        "text": `${JSON.stringify(quizList)}`
       },
-      {
-        "type": "text",
-        "text": "May I help you?"
-      }
+      confirmMessage(quizList[0].body, {list: quizList})
     ]
-    if (events[0].message.text === 'start') {
-      messages = [
-        confirmMessage({list: getRandomNumbers(100), count: 0})
-      ]
-    }
-    // MEMO:
-    // 送られたメッセージの中に `/` が含まれている場合は文字列を分割して保存する
-    if (events[0].message.text.match(/\//g)) {
-      const [body, answer] = events[0].message.text.split('/')
-      const quiz = new Quiz({body, answer})
-      await quiz.saveToSupabase(supabaseClient(req))
-      messages = quiz.savedMessages()
-    }
-    console.log({reply: messages})
-    const dataString = JSON.stringify({
-      replyToken: events[0].replyToken,
-      messages: messages
-    })
-
-    // リクエストヘッダー
-    const headers = {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')
-    }
-
-    // https://developers.line.biz/ja/docs/messaging-api/nodejs-sample/#send-reply
-    fetch('https://api.line.me/v2/bot/message/reply',
-      {
-        method: "POST",
-        body: dataString,
-        headers: headers,
-      }
-    ).then(r => {console.log(r)})
-    .catch(e => { console.log(e) })
+    console.log({messages, quizList})
+    replyMessage(events, messages)
   }
-
   if (events && events[0]?.type === "postback") {
     const postbackMessages = [
       {
@@ -68,23 +82,35 @@ serve(async (req) => {
       }
     ]
     const postbackData = JSON.parse(events[0].postback.data)
-    let count = postbackData.count
-    let list = postbackData.list;
-    if(postbackData.list.length <= parseInt(postbackData.count)) {
-      count = 0;
-      list = getRandomNumbers(100)
+    let first = postbackData.list[0]
+    let list = postbackData.list.slice(1)
+    if(list.length > 0) {
+      // 続きの問題を返す
+      const messages = [
+        ...postbackMessages,
+        {
+          "type": "text",
+          "text": `answer is ${first.answer}`
+        },
+        confirmMessage(list[0].body, {...postbackData, list})
+      ]
+      replyMessage(events, messages)
+    } else {
+      const quizList = await fetchRandom10QuizIds(supabaseClient(req))
+      // リセットする
+      const messages = [
+        ...postbackMessages,        {
+          "type": "text",
+          "text": `answer is ${first.answer}`
+        },
+        {
+          "type": "text",
+          "text": `finished!!!`
+        },
+        confirmMessage(quizList[0].body, {list: quizList})
+      ]
+      replyMessage(events, messages)
     }
-
-    const messages = [
-      ...postbackMessages,
-      {
-        "type": "text",
-        "text": `now：${list[count]}, count: ${count}, list: ${list}`
-      },
-      confirmMessage({...postbackData, count: count + 1, list})
-    ]
-    console.log(messages)
-    replyMessage(events, messages)
   }
   return new Response(
     JSON.stringify({status: 'ok'}),
