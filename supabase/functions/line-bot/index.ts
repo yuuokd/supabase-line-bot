@@ -12,57 +12,54 @@ import { getRandomNumbers } from './lib.ts'
 serve(async (req) => {
   const { name, events } = await req.json()
   console.log(events)
-  // if (events && events[0]?.type === "message") {
-  //   // 文字列化したメッセージデータ
-  //   let messages:any = [
-  //     {
-  //       "type": "text",
-  //       "text": "Hello, user"
-  //     },
-  //     {
-  //       "type": "text",
-  //       "text": "May I help you?"
-  //     }
-  //   ]
-  //   if (events[0].message.text === 'quiz') {
-  //     messages = await selectQuiz(supabaseClient(req))
-  //   }
-  //   // MEMO:
-  //   // 送られたメッセージの中に `/` が含まれている場合は文字列を分割して保存する
-  //   if (events[0].message.text.match(/\//g)) {
-  //     const [body, answer] = events[0].message.text.split('/')
-  //     const quiz = new Quiz({body, answer})
-  //     await quiz.saveToSupabase(supabaseClient(req))
-  //     messages = quiz.savedMessages()
-  //   }
-  //   console.log({reply: messages})
-  //   const dataString = JSON.stringify({
-  //     replyToken: events[0].replyToken,
-  //     messages: messages
-  //   })
-
-  //   // リクエストヘッダー
-  //   const headers = {
-  //     "Content-Type": "application/json",
-  //     "Authorization": "Bearer " + Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')
-  //   }
-
-  //   // https://developers.line.biz/ja/docs/messaging-api/nodejs-sample/#send-reply
-  //   fetch('https://api.line.me/v2/bot/message/reply',
-  //     {
-  //       method: "POST",
-  //       body: dataString,
-  //       headers: headers,
-  //     }
-  //   ).then(r => {console.log(r)})
-  //   .catch(e => { console.log(e) })
-  // }
   if (events && events[0]?.type === "message") {
-    const messages = [
-      confirmMessage({list: getRandomNumbers(100), count: 0})
+    // 文字列化したメッセージデータ
+    let messages:any = [
+      {
+        "type": "text",
+        "text": "Hello, user"
+      },
+      {
+        "type": "text",
+        "text": "May I help you?"
+      }
     ]
-    replyMessage(events, messages)
+    if (events[0].message.text === 'start') {
+      messages = [
+        confirmMessage({list: getRandomNumbers(100), count: 0})
+      ]
+    }
+    // MEMO:
+    // 送られたメッセージの中に `/` が含まれている場合は文字列を分割して保存する
+    if (events[0].message.text.match(/\//g)) {
+      const [body, answer] = events[0].message.text.split('/')
+      const quiz = new Quiz({body, answer})
+      await quiz.saveToSupabase(supabaseClient(req))
+      messages = quiz.savedMessages()
+    }
+    console.log({reply: messages})
+    const dataString = JSON.stringify({
+      replyToken: events[0].replyToken,
+      messages: messages
+    })
+
+    // リクエストヘッダー
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')
+    }
+
+    // https://developers.line.biz/ja/docs/messaging-api/nodejs-sample/#send-reply
+    fetch('https://api.line.me/v2/bot/message/reply',
+      {
+        method: "POST",
+        body: dataString,
+        headers: headers,
+      }
+    ).then(r => {console.log(r)})
+    .catch(e => { console.log(e) })
   }
+
   if (events && events[0]?.type === "postback") {
     const postbackMessages = [
       {
