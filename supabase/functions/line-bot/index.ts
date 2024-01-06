@@ -11,68 +11,58 @@ import { getRandomNumbers, fetchRandom10QuizIds } from './lib.ts'
 serve(async (req) => {
   const { name, events } = await req.json()
   console.log(events)
-  // if (events && events[0]?.type === "message") {
-  //   // 文字列化したメッセージデータ
-  //   let messages:any = [
-  //     {
-  //       "type": "text",
-  //       "text": "Hello, user"
-  //     },
-  //     {
-  //       "type": "text",
-  //       "text": "May I help you?"
-  //     }
-  //   ]
-  //   if (events[0].message.text === 'スタート') {
-  //     // クイズを開始する
-  //     messages = [
-  //       {
-  //         "type": "text",
-  //         "text": "問題を始めるよ！"
-  //       },
-  //       confirmMessage({list: getRandomNumbers(100)})
-  //     ]
-  //   } else if (events[0].message.text.match(/\//g)) {
-  //     // MEMO:
-  //     // 送られたメッセージの中に `/` が含まれている場合は文字列を分割して保存する
-  //     const [body, answer] = events[0].message.text.split('/')
-  //     const quiz = new Quiz({body, answer})
-  //     await quiz.saveToSupabase(supabaseClient(req))
-  //     messages = quiz.savedMessages()
-  //   }
-  //   console.log({reply: messages})
-  //   const dataString = JSON.stringify({
-  //     replyToken: events[0].replyToken,
-  //     messages: messages
-  //   })
-
-  //   // リクエストヘッダー
-  //   const headers = {
-  //     "Content-Type": "application/json",
-  //     "Authorization": "Bearer " + Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')
-  //   }
-
-  //   // https://developers.line.biz/ja/docs/messaging-api/nodejs-sample/#send-reply
-  //   fetch('https://api.line.me/v2/bot/message/reply',
-  //     {
-  //       method: "POST",
-  //       body: dataString,
-  //       headers: headers,
-  //     }
-  //   ).then(r => {console.log(r)})
-  //   .catch(e => { console.log(e) })
-  // }
   if (events && events[0]?.type === "message") {
-    const quizList = await fetchRandom10QuizIds(supabaseClient(req))
-    const messages = [
+    // 文字列化したメッセージデータ
+    let messages:any = [
       {
         "type": "text",
-        "text": `${JSON.stringify(quizList)}`
+        "text": "Hello, user"
       },
-      confirmMessage(quizList[0].body, {list: quizList})
+      {
+        "type": "text",
+        "text": "May I help you?"
+      }
     ]
-    console.log({messages, quizList})
-    replyMessage(events, messages)
+    if (events[0].message.text === 'スタート') {
+      const quizList = await fetchRandom10QuizIds(supabaseClient(req))
+      // クイズを開始する
+      messages = [
+        {
+          "type": "text",
+          "text": "問題を始めるよ！"
+        },
+        confirmMessage(quizList[0].body, {list: quizList})
+      ]
+      console.log({messages, quizList})
+    } else if (events[0].message.text.match(/\//g)) {
+      // MEMO:
+      // 送られたメッセージの中に `/` が含まれている場合は文字列を分割して保存する
+      const [body, answer] = events[0].message.text.split('/')
+      const quiz = new Quiz({body, answer})
+      await quiz.saveToSupabase(supabaseClient(req))
+      messages = quiz.savedMessages()
+    }
+    console.log({reply: messages})
+    const dataString = JSON.stringify({
+      replyToken: events[0].replyToken,
+      messages: messages
+    })
+
+    // リクエストヘッダー
+    const headers = {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')
+    }
+
+    // https://developers.line.biz/ja/docs/messaging-api/nodejs-sample/#send-reply
+    fetch('https://api.line.me/v2/bot/message/reply',
+      {
+        method: "POST",
+        body: dataString,
+        headers: headers,
+      }
+    ).then(r => {console.log(r)})
+    .catch(e => { console.log(e) })
   }
   if (events && events[0]?.type === "postback") {
     const postbackMessages = [
