@@ -11,10 +11,10 @@ export const flashCardMessage = (body, data?) => {
   // valdiation
   // https://developers.line.biz/en/reference/messaging-api/#action-objects
   actions.forEach((action) => {
-    if(action.type === 'type' && action.data.length > 300) {
+    if(action.type === 'postback' && action.data.length > 300) {
       console.log({reason: 'postback.data は最大で 300 文字までです', data: action.data})
     }
-    if(action.type === 'type' && action.label.length > 20) {
+    if(action.type === 'postback' && action.label.length > 20) {
       console.log({reason: 'postback.label は最大で 20 文字までです', data: action.label})
     }
   })
