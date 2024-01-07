@@ -15,11 +15,11 @@ serve(async (req) => {
     let messages:any = [
       {
         "type": "text",
-        "text": "Hello, user"
+        "text": "こんにちはメッセージありがとう！"
       },
       {
         "type": "text",
-        "text": "May I help you?"
+        "text": "スタートで単語帳を始めることができるよ！"
       }
     ]
     if (events[0].message.text === 'スタート') {
@@ -56,18 +56,16 @@ serve(async (req) => {
     replyMessage(events, messages)
   }
   if (events && events[0]?.type === "postback") {
-    const postbackMessages = [
-      {
-        "type": "text",
-        "text": `data：${events[0].postback.data}`
-      }
-    ]
+    const postbackMessage = {
+      "type": "text",
+      "text": `data：${events[0].postback.data}`
+    }
     const postbackData = JSON.parse(events[0].postback.data)
     let [first, ...list] = postbackData.list
     if(list.length > 0) {
       // 続きの問題を返す
       const messages = [
-        ...postbackMessages,
+        postbackMessage,
         {
           "type": "text",
           "text": `答えは「${first.answer}」だよ`
@@ -81,7 +79,8 @@ serve(async (req) => {
       const list = shuffle(data).slice(0, 10)
       // リセットする
       const messages = [
-        ...postbackMessages,        {
+        postbackMessage,
+        {
           "type": "text",
           "text": `答えは「${first.answer}」だよ`
         },
