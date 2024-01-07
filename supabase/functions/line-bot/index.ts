@@ -25,7 +25,7 @@ serve(async (req) => {
     if (events[0].message.text === 'スタート') {
       const { data, error } = await supabaseClient(req).from('quiz').select('question,answer')
       if(error) console.log({error})
-      const list = shuffle(data).slice(0, 10)
+      const list = shuffle(data).slice(0, 5)
       // クイズを開始する
       messages = [
         {
