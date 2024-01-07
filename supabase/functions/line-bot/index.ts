@@ -23,18 +23,17 @@ serve(async (req) => {
       }
     ]
     if (events[0].message.text === 'スタート') {
-      const { data, error } = await supabaseClient(req).from('quiz').select('id,body,answer')
+      const { data, error } = await supabaseClient(req).from('quiz').select('body,answer')
       if(error) console.log({error})
       const list = shuffle(data).slice(0, 10)
       // クイズを開始する
       messages = [
         {
           "type": "text",
-          "text": "問題を始めるよ！"
+          "text": "問題をはじめるよ！"
         },
         flashCardMessage(list[0].body, {list: list})
       ]
-      console.log({list})
     } else if (events[0].message.text.match(/\//g)) {
       // MEMO:
       // 送られたメッセージの中に `/` が含まれている場合は文字列を分割して保存する

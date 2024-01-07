@@ -41,7 +41,6 @@ export const flashCardMessage = (body, data?) => {
                     // https://developers.line.biz/en/reference/messaging-api/#postback-event
                     "type": "postback",
                     "label": "答えを見る",
-                    "inputOption": "openRichMenu",
                     "data": JSON.stringify(data || {action: 'buy', itemid: 111, list: []}),
                 }
             ]
