@@ -1,4 +1,4 @@
-export const flashCardMessage = (body, data?) => {
+export const flashCardMessage = (question, data?) => {
   const actions = [
     {
       "type": "postback",
@@ -24,7 +24,7 @@ export const flashCardMessage = (body, data?) => {
     "altText": "単語帳のメッセージを表示中",
     "template": {
       "type": "buttons",
-      "text": `「${body}」`,
+      "text": `「${question}」`,
       "actions": actions
     }
   }
