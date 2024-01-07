@@ -4,7 +4,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { supabaseClient } from './supabaseClient.ts'
-import { Quiz } from "./quiz.ts"
 import { flashCardMessage, replyMessage } from './messages.ts'
 import { shuffle } from './lib.ts'
 
@@ -24,24 +23,34 @@ serve(async (req) => {
       }
     ]
     if (events[0].message.text === 'スタート') {
-      const { data, error } = await supabaseClient(req).from('quiz').select('body,answer')
-      const quizList = shuffle(data).slice(0, 10)
+      const { data, error } = await supabaseClient(req).from('quiz').select('id,body,answer')
+      if(error) console.log({error})
+      const list = shuffle(data).slice(0, 10)
       // クイズを開始する
       messages = [
         {
           "type": "text",
           "text": "問題を始めるよ！"
         },
-        flashCardMessage(quizList[0].body, {list: quizList})
+        flashCardMessage(list[0].body, {list: list})
       ]
-      console.log({messages, quizList})
+      console.log({list})
     } else if (events[0].message.text.match(/\//g)) {
       // MEMO:
       // 送られたメッセージの中に `/` が含まれている場合は文字列を分割して保存する
-      const [body, answer] = events[0].message.text.split('/')
-      const quiz = new Quiz({body, answer})
-      await quiz.saveToSupabase(supabaseClient(req))
-      messages = quiz.savedMessages()
+      const [body, answer] = events[0].message.text
+        .replace(/\s+/g, '')  // 空白を削除
+        .split('/')           // [body, answer] に分割する
+      const { error } = await supabaseClient(req)
+        .from('quiz')
+        .insert({ answer: answer, body: body })
+      if(error) console.log({error})
+      messages = [
+        {
+          "type": "text",
+          "text": `単語：${body} / 解答：${answer} を登録しました`
+        }
+      ]
     }
     console.log({reply: messages})
     replyMessage(events, messages)
@@ -63,12 +72,13 @@ serve(async (req) => {
           "type": "text",
           "text": `答えは「${first.answer}」だよ`
         },
-        flashCardMessage(list[0].body, {...postbackData, list})
+        flashCardMessage(list[0].body, {list: list})
       ]
       replyMessage(events, messages)
     } else {
-      const { data, error } = await supabaseClient(req).from('quiz').select('body,answer')
-      const quizList = shuffle(data).slice(0, 10)
+      const { data, error } = await supabaseClient(req).from('quiz').select('id,body,answer')
+      if(error) console.log({error})
+      const list = shuffle(data).slice(0, 10)
       // リセットする
       const messages = [
         ...postbackMessages,        {
@@ -79,7 +89,7 @@ serve(async (req) => {
           "type": "text",
           "text": `おわったよ！`
         },
-        flashCardMessage(quizList[0].body, {list: quizList})
+        flashCardMessage(list[0].body, {list: list})
       ]
       replyMessage(events, messages)
     }
