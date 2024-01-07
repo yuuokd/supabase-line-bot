@@ -5,11 +5,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { supabaseClient } from './supabaseClient.ts'
 import { Quiz } from "./quiz.ts"
-import { confirmMessage, replyMessage } from './messages.ts'
-import { getRandomNumbers, fetchRandom10QuizIds } from './lib.ts'
+import { flashCardMessage, replyMessage } from './messages.ts'
+import { shuffle } from './lib.ts'
 
 serve(async (req) => {
-  const { name, events } = await req.json()
+  const { events } = await req.json()
   console.log(events)
   if (events && events[0]?.type === "message") {
     // 文字列化したメッセージデータ
@@ -24,14 +24,15 @@ serve(async (req) => {
       }
     ]
     if (events[0].message.text === 'スタート') {
-      const quizList = await fetchRandom10QuizIds(supabaseClient(req))
+      const { data, error } = await supabaseClient(req).from('quiz').select('body,answer')
+      const quizList = shuffle(data).slice(0, 10)
       // クイズを開始する
       messages = [
         {
           "type": "text",
           "text": "問題を始めるよ！"
         },
-        confirmMessage(quizList[0].body, {list: quizList})
+        flashCardMessage(quizList[0].body, {list: quizList})
       ]
       console.log({messages, quizList})
     } else if (events[0].message.text.match(/\//g)) {
@@ -43,26 +44,7 @@ serve(async (req) => {
       messages = quiz.savedMessages()
     }
     console.log({reply: messages})
-    const dataString = JSON.stringify({
-      replyToken: events[0].replyToken,
-      messages: messages
-    })
-
-    // リクエストヘッダー
-    const headers = {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')
-    }
-
-    // https://developers.line.biz/ja/docs/messaging-api/nodejs-sample/#send-reply
-    fetch('https://api.line.me/v2/bot/message/reply',
-      {
-        method: "POST",
-        body: dataString,
-        headers: headers,
-      }
-    ).then(r => {console.log(r)})
-    .catch(e => { console.log(e) })
+    replyMessage(events, messages)
   }
   if (events && events[0]?.type === "postback") {
     const postbackMessages = [
@@ -72,32 +54,32 @@ serve(async (req) => {
       }
     ]
     const postbackData = JSON.parse(events[0].postback.data)
-    let first = postbackData.list[0]
-    let list = postbackData.list.slice(1)
+    let [first, ...list] = postbackData.list
     if(list.length > 0) {
       // 続きの問題を返す
       const messages = [
         ...postbackMessages,
         {
           "type": "text",
-          "text": `answer is ${first.answer}`
+          "text": `答えは「${first.answer}」だよ`
         },
-        confirmMessage(list[0].body, {...postbackData, list})
+        flashCardMessage(list[0].body, {...postbackData, list})
       ]
       replyMessage(events, messages)
     } else {
-      const quizList = await fetchRandom10QuizIds(supabaseClient(req))
+      const { data, error } = await supabaseClient(req).from('quiz').select('body,answer')
+      const quizList = shuffle(data).slice(0, 10)
       // リセットする
       const messages = [
         ...postbackMessages,        {
           "type": "text",
-          "text": `answer is ${first.answer}`
+          "text": `答えは「${first.answer}」だよ`
         },
         {
           "type": "text",
-          "text": `finished!!!`
+          "text": `おわったよ！`
         },
-        confirmMessage(quizList[0].body, {list: quizList})
+        flashCardMessage(quizList[0].body, {list: quizList})
       ]
       replyMessage(events, messages)
     }

@@ -1,8 +1,7 @@
-
-export const confirmMessage = (body, data?) => {
+export const flashCardMessage = (body, data?) => {
   return {
     "type": "template",
-    "altText": "this is a confirm template",
+    "altText": "単語帳のメッセージを表示中",
     "template": {
       "type": "buttons",
       "text": `「${body}」`,
@@ -39,4 +38,12 @@ export const replyMessage = (events, messages) => {
     }
   ).then(r => {console.log(r)})
   .catch(e => { console.log(e) })
+}
+
+export const flexMessage = (contents) => {
+  return {
+      "type": "flex",
+      "altText": "This is a Flex Message",
+      "contents": contents
+  }
 }
