@@ -1,3 +1,35 @@
+export const flashCardMessage = (body, data?) => {
+    const actions = [
+      {
+        "type": "postback",
+        "label": "答えを見る",
+        "inputOption": "openRichMenu",
+        "data": JSON.stringify(data || {action: 'buy', itemid: 111, list: []}),
+      }
+    ]
+
+    // valdiation
+    // https://developers.line.biz/en/reference/messaging-api/#action-objects
+    actions.forEach((action) => {
+      if(action.type === 'type' && action.data.length > 300) {
+        console.log({reason: 'postback.data は最大で 300 文字までです', data: action.data})
+      }
+      if(action.type === 'type' && action.label.length > 20) {
+        console.log({reason: 'postback.label は最大で 20 文字までです', data: action.label})
+      }
+    })
+
+    return {
+      "type": "template",
+      "altText": "単語帳のメッセージを表示中",
+      "template": {
+        "type": "buttons",
+        "text": `「${body}」`,
+        "actions": actions
+      }
+    }
+}
+
 export const replyMessage = (events, messages) => {
     const dataString = JSON.stringify({
         replyToken: events[0].replyToken,
@@ -20,30 +52,11 @@ export const replyMessage = (events, messages) => {
     ).then(r => {console.log(r)})
     .catch(e => { console.log(e) })
 }
+
 export const flexMessage = (contents) => {
     return {
         "type": "flex",
         "altText": "This is a Flex Message",
         "contents": contents
-    }
-}
-
-export const flashCardMessage = (body, data?) => {
-    return {
-        "type": "template",
-        "altText": "単語帳のメッセージを表示中",
-        "template": {
-            "type": "buttons",
-            "text": `「${body}」`,
-            "actions": [
-                {
-                    // postback event
-                    // https://developers.line.biz/en/reference/messaging-api/#postback-event
-                    "type": "postback",
-                    "label": "答えを見る",
-                    "data": JSON.stringify(data || {action: 'buy', itemid: 111, list: []}),
-                }
-            ]
-        }
     }
 }
