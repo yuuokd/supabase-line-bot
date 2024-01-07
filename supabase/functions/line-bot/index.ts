@@ -73,9 +73,6 @@ serve(async (req) => {
       ]
       replyMessage(events, messages)
     } else {
-      const { data, error } = await supabaseClient(req).from('quiz').select('id,body,answer')
-      if(error) console.log({error})
-      const list = shuffle(data).slice(0, 10)
       // リセットする
       const messages = [
         postbackMessage,
@@ -86,8 +83,7 @@ serve(async (req) => {
         {
           "type": "text",
           "text": `おわったよ！`
-        },
-        flashCardMessage(list[0].body, {list: list})
+        }
       ]
       replyMessage(events, messages)
     }
