@@ -1,5 +1,5 @@
 // ChatGPT から作った適当な関数たち
-function shuffle(array) {
+export function shuffle(array) {
     let currentIndex = array.length, temporaryValue, randomIndex;
 
     while (0 !== currentIndex) {
@@ -18,4 +18,3 @@ export const fetchRandom10QuizIds = async(supabaseClient) => {
     const { data, error } = await supabaseClient.from('quiz').select('body,answer')
     return shuffle(data).slice(0, 10)
 }
-  

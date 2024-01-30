@@ -39,7 +39,7 @@ export const replyMessage = (events, messages) => {
     // リクエストヘッダー
     const headers = {
         "Content-Type": "application/json",
-        "Authorization": "Bearer " + Deno.env.get('TEST_LINE_CHANNEL_ACCESS_TOKEN')
+        "Authorization": "Bearer " + Deno.env.get('LINE_CHANNEL_ACCESS_TOKEN')
     }
 
     // https://developers.line.biz/ja/docs/messaging-api/nodejs-sample/#send-reply
