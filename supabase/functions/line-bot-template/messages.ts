@@ -4,7 +4,7 @@ export const flashCardMessage = (body, data?) => {
         "type": "postback",
         "label": "答えを見る",
         "inputOption": "openRichMenu",
-        "data": JSON.stringify(data || {action: 'buy', itemid: 111, list: []}),
+        "data": JSON.stringify({action: 'nextCard', ...data}),
       }
     ]
 
