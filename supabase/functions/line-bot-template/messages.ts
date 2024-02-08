@@ -46,7 +46,7 @@ export const replyMessage = (events, messages) => {
     fetch('https://api.line.me/v2/bot/message/reply',
         {
             method: "POST",
-            question: dataString,
+            body: dataString,
             headers: headers,
         }
     ).then(r => {console.log(r)})
