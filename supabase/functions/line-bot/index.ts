@@ -3,17 +3,30 @@
 // This enables autocomplete, go to definition, etc.
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { replyMessage } from './messages.ts'
 
 console.log("Hello from Functions!")
 
 serve(async (req) => {
-  const { name } = await req.json()
-  const data = {
-    message: `Hello ${name}!`,
-  }
+  const { events } = await req.json()
+  console.log(events)
+  if (events && events[0]?.type === "message") {
+    // 文字列化したメッセージデータ
+    let messages:any = [
+      {
+        "type": "text",
+        "text": "こんにちは！"
+      },
+      {
+        "type": "text",
+        "text": "テスト / test で単語を登録できます"
+      }
+    ]
+    replyMessage(events, messages)
+   }
 
   return new Response(
-    JSON.stringify(data),
+    JSON.stringify({status: 'ok'}),
     { headers: { "Content-Type": "application/json" } },
   )
 })
