@@ -15,11 +15,11 @@ serve(async (req) => {
     let messages:any = [
       {
         "type": "text",
-        "text": "こんにちは！"
+        "text": "こんにちは！テストメッセージです。"
       },
       {
         "type": "text",
-        "text": "テスト / test で単語を登録できます"
+        "text": "テスト / test で単語を登録できます。"
       }
     ]
     replyMessage(events, messages)
