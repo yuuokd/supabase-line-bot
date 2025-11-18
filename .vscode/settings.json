@@ -1,0 +1,7 @@
+{
+  "git.environment": {
+    "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+  },
+  "terminal.integrated.inheritEnv": true,
+  "git.verboseLogging": true
+}
