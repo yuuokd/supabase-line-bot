@@ -1,33 +1,97 @@
+class ActionValidator {
+    validate(action) {
+        switch (action.type) {
+            case "postback":
+                this.validatePostback(action)
+                break
+            default:
+                break
+        }
+    }
+
+    validatePostback(action) {
+        if (action.data && action.data.length > 300) {
+            console.error({
+                reason: "postback.data は最大で 300 文字までです",
+                data: action.data,
+            })
+        }
+
+        if (action.label && action.label.length > 20) {
+            console.error({
+                reason: "postback.label は最大で 20 文字までです",
+                data: action.label,
+            })
+        }
+    }
+}
+
 export const flashCardMessage = (question, data?) => {
+    const validator = new ActionValidator()
+
     const actions = [
-      {
-        "type": "postback",
-        "label": "答えを見る",
-        "inputOption": "openRichMenu",
-        "data": JSON.stringify({action: 'nextCard', ...data}),
-      }
+        {
+            type: "postback",
+            label: "答えを見る",
+            inputOption: "openRichMenu",
+            data: JSON.stringify({ action: "nextCard", ...data }),
+        },
+        {
+            type: "postback",
+            label: "削除する",
+            data: JSON.stringify({ action: "deleteCard", ...data }),
+        },
+        {
+            type: "clipboard",
+            label: "コピーする",
+            clipboardText: question,
+        },
     ]
 
-    // valdiation
-    // https://developers.line.biz/en/reference/messaging-api/#action-objects
-    actions.forEach((action) => {
-      if(action.type === 'postback' && action.data.length > 300) {
-        console.error({reason: 'postback.data は最大で 300 文字までです', data: action.data})
-      }
-      if(action.type === 'postback' && action.label.length > 20) {
-        console.error({reason: 'postback.label は最大で 20 文字までです', data: action.label})
-      }
-    })
+    // validation 実行（postback だけが対象）
+    actions.forEach((action) => validator.validate(action))
 
-    return {
-      "type": "template",
-      "altText": "単語帳のメッセージを表示中",
-      "template": {
-        "type": "buttons",
-        "text": `「${question}」`,
-        "actions": actions
-      }
+    const bubble = {
+        type: "bubble",
+        body: {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            contents: [
+                {
+                    type: "text",
+                    text: question,
+                    wrap: true,
+                    weight: "bold",
+                    size: "xl",
+                },
+            ],
+        },
+        footer: {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            contents: [
+                {
+                    type: "button",
+                    style: "primary",
+                    action: actions[0], // 答えを見る
+                },
+                {
+                    type: "button",
+                    style: "primary",
+                    color: "#E50000",
+                    action: actions[1], // 削除する
+                },
+                {
+                    type: "button",
+                    action: actions[2], // コピーする
+                },
+            ],
+        },
     }
+
+    return flexMessage(bubble, "単語帳のメッセージを表示中")
 }
 
 export const replyMessage = (events, messages) => {
@@ -54,64 +118,75 @@ export const replyMessage = (events, messages) => {
 }
 
 export const flashCardFlexMessage = (question, data?) => {
-    const bubble = {
-        "type": "bubble",
-        "body": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "sm",
-            "contents": [
-                {
-                    "type": "text",
-                    "text": question,
-                    "wrap": true,
-                    "weight": "bold",
-                    "size": "xl"
-                }
-            ]
+    const validator = new ActionValidator()
+
+    const actions = [
+        {
+            type: "postback",
+            label: "答えを見る",
+            data: JSON.stringify({ action: "nextCard", ...data }),
         },
-        "footer": {
-            "type": "box",
-            "layout": "vertical",
-            "spacing": "sm",
-            "contents": [
+        {
+            type: "postback",
+            label: "削除する",
+            data: JSON.stringify({ action: "deleteCard", ...data }),
+        },
+        {
+            type: "clipboard",
+            label: "コピーする",
+            clipboardText: question,
+        },
+    ]
+
+    actions.forEach((action) => validator.validate(action))
+
+    const bubble = {
+        type: "bubble",
+        body: {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            contents: [
                 {
-                    "type": "button",
-                    "style": "primary",
-                    "action": {
-                        "type": "postback",
-                        "label": "答えを見る",
-                        "data": JSON.stringify({action: 'nextCard', ...data}),
-                    }
+                    type: "text",
+                    text: question,
+                    wrap: true,
+                    weight: "bold",
+                    size: "xl",
+                },
+            ],
+        },
+        footer: {
+            type: "box",
+            layout: "vertical",
+            spacing: "sm",
+            contents: [
+                {
+                    type: "button",
+                    style: "primary",
+                    action: actions[0],
                 },
                 {
-                    "type": "button",
-                    "action": {
-                        "type": "postback",
-                        "label": "削除する",
-                        "data": JSON.stringify({action: 'deleteCard', ...data}),
-                    },
-                    "color": "#E50000",
-                    "style": "primary"
+                    type: "button",
+                    action: actions[1],
+                    color: "#E50000",
+                    style: "primary",
                 },
                 {
-                    "type": "button",
-                    "action": {
-                        "type": "clipboard",
-                        "label": "コピーする",
-                        "clipboardText": question
-                    }
-                }
-            ]
-        }
+                    type: "button",
+                    action: actions[2],
+                },
+            ],
+        },
     }
-    return flexMessage(bubble, '単語帳のメッセージを表示中')
+
+    return flexMessage(bubble, "単語帳のメッセージを表示中")
 }
 
-export const flexMessage = (contents) => {
+export const flexMessage = (contents, altText = "This is a Flex Message") => {
     return {
-        "type": "flex",
-        "altText": "This is a Flex Message",
-        "contents": contents
+        type: "flex",
+        altText,
+        contents,
     }
 }
