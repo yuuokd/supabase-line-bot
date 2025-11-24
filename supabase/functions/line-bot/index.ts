@@ -15,11 +15,27 @@ serve(async (req) => {
     let messages:any = [
       {
         "type": "text",
-        "text": "こんにちは！テストメッセージです。"
+        "quoteToken": events[0].message.quoteToken
+        "text": events[0].message.text
       },
-      {
-        "type": "text",
-        "text": "テスト / test で単語を登録できます。"
+      "quickReply": {
+          "items": [
+            {
+              "type": "action",
+              "action": {
+                "type": "message",
+                "label": "スタート",
+                "text": "スタート"
+              }
+            },
+            {
+              "type": "action",
+              "action": {
+                "type": "location",
+                "label": "位置を送る"
+              }
+            }
+          ]
       }
     ]
     replyMessage(events, messages)
