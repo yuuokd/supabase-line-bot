@@ -7,12 +7,85 @@ import { supabaseClient } from './supabaseClient.ts'
 import { Quiz } from "./quiz.ts"
 import { flashCardMessage, replyMessage } from './messages.ts'
 import { shuffle } from "./lib.ts"
+import {
+  CustomerRepository,
+  FriendService,
+  LineApiClient,
+} from "./friends.ts"
+import {
+  StoryEnrollmentService,
+  StoryRepository,
+  UserFlowRepository,
+} from "./stories.ts"
 
 console.log("Hello from Functions!")
 
+const supabase = supabaseClient()
+const lineApiClient = new LineApiClient()
+const customerRepository = new CustomerRepository(supabase)
+const friendService = new FriendService(lineApiClient, customerRepository)
+const storyRepository = new StoryRepository(supabase)
+const userFlowRepository = new UserFlowRepository(supabase)
+const storyEnrollmentService = new StoryEnrollmentService(
+  storyRepository,
+  userFlowRepository,
+)
+
+const jsonHeaders = { "Content-Type": "application/json" }
+
+const safeJsonParse = async (req: Request) => {
+  try {
+    return await req.json()
+  } catch (_error) {
+    return {}
+  }
+}
+
+const isSyncFriendsRequest = (url: URL, body: any) => {
+  return url.pathname.endsWith("/sync-friends") ||
+    url.searchParams.get("task") === "sync-friends" ||
+    body?.task === "sync-friends"
+}
+
 serve(async (req) => {
 
-  const { events } = await req.json()
+  const url = new URL(req.url)
+  const body = await safeJsonParse(req)
+  const { events } = body as { events?: any[] }
+  const firstEvent = events?.[0]
+
+  if (isSyncFriendsRequest(url, body)) {
+    const result = await friendService.syncFollowers()
+    const hasError = Boolean((result as any).error)
+    return new Response(
+      JSON.stringify({ status: hasError ? "error" : "ok", ...result }),
+      { headers: jsonHeaders, status: hasError ? 500 : 200 },
+    )
+  }
+
+  if (firstEvent?.type === "follow") {
+    const customerId = await friendService.registerNewFriend(firstEvent.source?.userId)
+    const storyMessage = await storyEnrollmentService.startInitialProfileStory(customerId)
+    const messages = [
+      { type: "text", text: "友だち追加ありがとうございます！" },
+    ]
+    if (storyMessage) messages.push(storyMessage)
+    replyMessage(events, messages)
+
+    return new Response(
+      JSON.stringify({ status: "ok" }),
+      { headers: jsonHeaders },
+    )
+  }
+
+  if (firstEvent?.type === "unfollow") {
+    await friendService.markAsUnfollowed(firstEvent.source?.userId)
+    return new Response(
+      JSON.stringify({ status: "ok" }),
+      { headers: jsonHeaders },
+    )
+  }
+
   console.log(events)
 
   if (events && events[0]?.type === "message") {
@@ -29,7 +102,7 @@ serve(async (req) => {
     ]
 
     if (events[0].message.text === 'スタート') {
-      const { data, error } = await supabaseClient().from('quiz').select('id,question,answer')
+      const { data, error } = await supabase.from('quiz').select('id,question,answer')
       const quizList = shuffle(data).slice(0, 5)
       // クイズを開始する
       messages = [
@@ -46,7 +119,7 @@ serve(async (req) => {
       // 送られたメッセージの中に `/` が含まれている場合は文字列を分割して保存する
       const [question, answer] = events[0].message.text.split('/')
       const quiz = new Quiz({question, answer})
-      await quiz.saveToSupabase(supabaseClient())
+      await quiz.saveToSupabase(supabase)
       messages = quiz.savedMessages()
     }
 
@@ -73,9 +146,9 @@ serve(async (req) => {
           "text": `こたえは「${first.answer}」です`
       })
     }
-    
+
     if(postbackData.action === 'deleteCard') {
-      await supabaseClient().from('quiz').delete().eq('id', first.id)
+      await supabase.from('quiz').delete().eq('id', first.id)
       messages.push({
           "type": "text",
           "text": "削除しました"
@@ -98,7 +171,7 @@ serve(async (req) => {
 
   return new Response(
     JSON.stringify({status: 'ok'}),
-    { headers: { "Content-Type": "application/json" } },
+    { headers: jsonHeaders },
   )
 })
 
