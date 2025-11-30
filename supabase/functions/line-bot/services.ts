@@ -710,7 +710,7 @@ export class WebhookService {
   private scheduleAfterDays(days: number): Date {
     const d = new Date()
     d.setDate(d.getDate() + days)
-    d.setHours(10, 0, 0, 0) // schedule at 10:00 utc
+    d.setHours(0, 0, 0, 0) // schedule at 0:00 utc
     return d
   }
 }
