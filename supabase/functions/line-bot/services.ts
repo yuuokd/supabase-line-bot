@@ -289,6 +289,21 @@ export class WebhookService {
     )
     if (!response) return
 
+    // University handling: record selection immediately.
+    if (question.order_index === 3 && value && !this.isOtherUniversity(value)) {
+      await this.deps.customerDao.updateProfile(customer.id, {
+        university_id: value,
+      })
+    }
+    if (question.order_index === 4 && value) {
+      const uniId = await this.deps.masterDao.upsertFreeTextUniversity(value)
+      if (uniId) {
+        await this.deps.customerDao.updateProfile(customer.id, {
+          university_id: uniId,
+        })
+      }
+    }
+
     await this.deps.surveyDao.saveOrUpdateAnswer(
       response.id,
       question.id,
@@ -304,19 +319,31 @@ export class WebhookService {
       "in_progress",
     )
 
+    // Determine next question (skip Q4 if university chosen and not "その他")
+    let nextOrderIndex = question.order_index + 1
+    let sessionIndex = question.order_index
+    if (question.order_index === 3 && value && !this.isOtherUniversity(value)) {
+      nextOrderIndex = 5 // skip free text
+      sessionIndex = 4 // consider skipped question handled
+    }
+
     const nextQuestion = await this.deps.surveyDao.getQuestionByOrder(
       surveyId,
-      question.order_index + 1,
+      nextOrderIndex,
     )
 
     if (nextQuestion) {
+      const nextValueForLast = question.order_index === 3 && value &&
+        !this.isOtherUniversity(value)
+        ? undefined
+        : value
       await this.sendQuestion(
         surveyId,
         nextQuestion.order_index,
         customer,
         replyToken ? "reply" : "push",
         replyToken,
-        value,
+        nextValueForLast ?? undefined,
       )
       return
     }
@@ -324,7 +351,7 @@ export class WebhookService {
     // Completed
     await this.deps.surveyDao.updateSessionProgress(
       ensuredSession.id,
-      question.order_index,
+      sessionIndex,
       "completed",
     )
     await this.deps.surveyDao.markResponseSubmitted(response.id)
@@ -454,14 +481,29 @@ export class WebhookService {
       case 3: {
         const universities = await this.deps.masterDao.getUniversities(12)
         // TODO: paginate universities beyond 12 choices when UX is defined.
-        return universities.map((univ) => ({
-          label: univ.name,
-          displayText: univ.name,
-          data: {
-            ...payloadBase,
-            optionValue: univ.id,
-          },
-        }))
+        const baseOptions = universities.map((univ) => {
+          const isOther = univ.name === "その他"
+          return {
+            label: univ.name,
+            displayText: univ.name,
+            data: {
+              ...payloadBase,
+              optionValue: isOther ? "OTHER" : univ.id,
+            },
+          }
+        })
+        // Add "その他" option for free text path
+        const hasOther = baseOptions.some((
+          opt,
+        ) => opt.label === "その他" || opt.data.optionValue === "OTHER")
+        if (!hasOther) {
+          baseOptions.push({
+            label: "その他",
+            displayText: "その他",
+            data: { ...payloadBase, optionValue: "OTHER" },
+          })
+        }
+        return baseOptions
       }
       case 5: {
         const options = await this.deps.surveyDao.getOptions(question.id)
@@ -533,6 +575,18 @@ export class WebhookService {
     if (gradeId) updates["grade_id"] = gradeId
     const majorId = getValueByOrder(2)
     if (majorId) updates["major_id"] = majorId
+    const universityValue = getValueByOrder(3)
+    if (universityValue && !this.isOtherUniversity(universityValue)) {
+      updates["university_id"] = universityValue
+    } else {
+      const freeText = getValueByOrder(4)
+      if (freeText) {
+        const uniId = await this.deps.masterDao.upsertFreeTextUniversity(
+          freeText,
+        )
+        if (uniId) updates["university_id"] = uniId
+      }
+    }
     const prefectureId = getValueByOrder(6)
     if (prefectureId) updates["prefecture_id"] = prefectureId
 
@@ -541,5 +595,9 @@ export class WebhookService {
     if (Object.keys(updates).length > 0) {
       await this.deps.customerDao.updateProfile(customerId, updates)
     }
+  }
+
+  private isOtherUniversity(value?: string | null): boolean {
+    return value === "OTHER" || value === "その他"
   }
 }

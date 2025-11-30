@@ -10,6 +10,12 @@ export class LineClient {
     | { displayName?: string; pictureUrl?: string; statusMessage?: string }
     | null
   > {
+    console.log({
+      direction: "outgoing",
+      target: "line",
+      action: "getProfile",
+      userId,
+    })
     try {
       const res = await fetch(
         `https://api.line.me/v2/bot/profile/${userId}`,
@@ -19,6 +25,12 @@ export class LineClient {
           },
         },
       )
+      console.log({
+        direction: "incoming",
+        target: "line",
+        action: "getProfile",
+        status: res.status,
+      })
       if (!res.ok) {
         console.error({
           reason: "LineClient.getProfile",
@@ -63,6 +75,12 @@ export class LineClient {
   }
 
   async reply(replyToken: string, messages: LineMessage[]) {
+    console.log({
+      direction: "outgoing",
+      target: "line",
+      action: "reply",
+      payload: { replyToken, messages },
+    })
     return await this.post("https://api.line.me/v2/bot/message/reply", {
       replyToken,
       messages,
@@ -70,6 +88,12 @@ export class LineClient {
   }
 
   async push(to: string, messages: LineMessage[]) {
+    console.log({
+      direction: "outgoing",
+      target: "line",
+      action: "push",
+      payload: { to, messages },
+    })
     return await this.post("https://api.line.me/v2/bot/message/push", {
       to,
       messages,
@@ -85,6 +109,13 @@ export class LineClient {
           Authorization: `Bearer ${this.accessToken}`,
         },
         body: JSON.stringify(payload),
+      })
+      console.log({
+        direction: "incoming",
+        target: "line",
+        action: "post",
+        url,
+        status: res.status,
       })
       if (!res.ok) {
         const text = await res.text()

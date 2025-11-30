@@ -585,6 +585,7 @@ export class MasterDataDAO {
     const { data, error } = await this.client
       .from("universities")
       .select("id, name")
+      .order("order_index", { ascending: true })
       .order("name", { ascending: true })
       .limit(limit)
     if (error) {
@@ -592,6 +593,46 @@ export class MasterDataDAO {
       return []
     }
     return data ?? []
+  }
+
+  async upsertFreeTextUniversity(name: string): Promise<string | null> {
+    if (!name) return null
+    // Try to find existing by exact name
+    const { data: existing, error: findError } = await this.client
+      .from("universities")
+      .select("id")
+      .eq("name", name)
+      .maybeSingle()
+    if (findError) {
+      console.error({ reason: "MasterDataDAO.upsertFreeTextUniversity.find", findError })
+    }
+    if (existing?.id) return existing.id
+
+    // Determine next order_index (max + 1)
+    const { data: maxRow, error: maxError } = await this.client
+      .from("universities")
+      .select("order_index")
+      .order("order_index", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (maxError) {
+      console.error({ reason: "MasterDataDAO.upsertFreeTextUniversity.max", maxError })
+    }
+    const nextOrderIndex = (maxRow?.order_index ?? 0) + 1
+
+    const { data, error } = await this.client
+      .from("universities")
+      .insert({
+        name,
+        order_index: nextOrderIndex,
+      })
+      .select("id")
+      .single()
+    if (error) {
+      console.error({ reason: "MasterDataDAO.upsertFreeTextUniversity.insert", error })
+      return null
+    }
+    return data?.id ?? null
   }
 
   async getPrefecturesByGroup(
