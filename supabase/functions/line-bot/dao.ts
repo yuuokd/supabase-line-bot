@@ -272,12 +272,13 @@ export class UserFlowDAO {
         current_node_id,
         next_scheduled_at,
         status,
-        customers!inner(line_user_id),
+        customers!inner(line_user_id,opt_in),
         message_nodes!inner(id,next_node_id,flex_template_id,title,body_text,image_url)
       `,
       )
       .lte("next_scheduled_at", nowIso)
       .eq("status", "in_progress")
+      .eq("customers.opt_in", true)
 
     if (error) {
       console.error({ reason: "UserFlowDAO.findDueFlows", error })

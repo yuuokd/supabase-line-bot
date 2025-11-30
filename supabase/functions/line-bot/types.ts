@@ -9,12 +9,14 @@ export interface LineEvent {
 }
 
 export interface PostbackPayload {
-  action: "start_survey" | "answer" | "start_free_text"
-  surveyId: string
+  action: "start_survey" | "answer" | "start_free_text" | "complete_flow"
+  surveyId?: string
   questionId?: string
   optionId?: string
   optionValue?: string
   orderIndex?: number
+  storyId?: string
+  nodeId?: string
 }
 
 export interface FlexTemplate {

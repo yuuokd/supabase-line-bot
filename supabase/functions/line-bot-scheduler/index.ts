@@ -53,13 +53,36 @@ async function processDueFlows() {
       )
       if (!template) continue
 
+      const survey = await surveyDao.findByNodeId((nextNode as any).id)
+      let primaryData: Record<string, unknown> = {}
+      if (survey) {
+        const firstQuestion = await surveyDao.getQuestionByOrder(
+          survey.id,
+          1,
+        )
+        primaryData = firstQuestion
+          ? {
+            action: "start_survey",
+            surveyId: survey.id,
+            questionId: firstQuestion.id,
+            orderIndex: firstQuestion.order_index,
+          }
+          : {}
+      } else {
+        primaryData = {
+          action: "complete_flow",
+          storyId: flow.story_id,
+          nodeId: (nextNode as any).id,
+        }
+      }
+
       const message = flexBuilder.buildContentMessage(template, {
         title: (nextNode as any).title ?? "お知らせ",
         bodyText: (nextNode as any).body_text ?? "",
         imageUrl: (nextNode as any).image_url,
         primaryLabel: "確認",
         primaryDisplayText: "確認",
-        primaryData: {},
+        primaryData,
         altText: (nextNode as any).title ?? "お知らせ",
       })
 
@@ -72,7 +95,7 @@ async function processDueFlows() {
       await flowDao.updateCurrentNodeAndSchedule(
         flow.id,
         (nextNode as any).id,
-        addDays(1).toISOString(),
+        scheduleAfterDays(4).toISOString(),
         "in_progress",
       )
     } catch (error) {
@@ -83,10 +106,11 @@ async function processDueFlows() {
   return { due: dueFlows.length, sent, completed }
 }
 
-function addDays(days: number): Date {
-  const now = new Date()
-  now.setDate(now.getDate() + days)
-  return now
+function scheduleAfterDays(days: number): Date {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  d.setHours(10, 0, 0, 0) // 10:00 local time
+  return d
 }
 
 Deno.serve(async () => {

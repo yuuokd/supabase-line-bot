@@ -124,7 +124,7 @@ export class WebhookService {
 
     await this.deps.lineClient.push(lineUserId, [message])
     await this.deps.storyTargetDao.logSent(entryNode.id, customer.id, "sent")
-    const nextDay = this.addDays(1)
+    const nextDay = this.scheduleAfterDays(4)
     await this.deps.userFlowDao.updateSchedule(
       customer.id,
       story.id,
@@ -402,7 +402,7 @@ export class WebhookService {
       await this.deps.userFlowDao.updateSchedule(
         customer.id,
         storyId,
-        this.addDays(1).toISOString(),
+        this.scheduleAfterDays(4).toISOString(),
       )
     }
 
@@ -696,9 +696,10 @@ export class WebhookService {
     return value === "OTHER" || value === "その他"
   }
 
-  private addDays(days: number): Date {
-    const now = new Date()
-    now.setDate(now.getDate() + days)
-    return now
+  private scheduleAfterDays(days: number): Date {
+    const d = new Date()
+    d.setDate(d.getDate() + days)
+    d.setHours(20, 0, 0, 0) // schedule at 20:00 local time
+    return d
   }
 }

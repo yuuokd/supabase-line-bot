@@ -201,7 +201,7 @@ export class CustomerRepository {
     async markActive(lineUserIds: string[], updatedAt: string) {
         if (lineUserIds.length === 0) return
 
-        const { error } = await this.client
+        const { data: customers, error } = await this.client
             .from("customers")
             .update({
                 is_blocked: false,
@@ -210,9 +210,25 @@ export class CustomerRepository {
                 updated_at: updatedAt,
             })
             .in("line_user_id", lineUserIds)
+            .select("id")
 
         if (error) {
             console.error({ caused: "CustomerRepository.markActive", error })
+            return
+        }
+
+        const customerIds = (customers ?? []).map((c) => c.id)
+        if (customerIds.length > 0) {
+            const { error: flowError } = await this.client
+                .from("user_flows")
+                .update({
+                    status: "in_progress",
+                    updated_at: updatedAt,
+                })
+                .in("customer_id", customerIds)
+            if (flowError) {
+                console.error({ caused: "CustomerRepository.markActive.user_flows", flowError })
+            }
         }
     }
 }
