@@ -25,7 +25,9 @@ export class CustomerDAO {
       const { data, error } = await this.client
         .from("customers")
         .update({
-          line_display_name: displayName ?? existing.line_display_name ?? null,
+          line_display_name: displayName ??
+            existing.line_display_name ??
+            null,
           opt_in: true,
           is_blocked: false,
           blocked_at: null,
@@ -78,11 +80,12 @@ export class CustomerDAO {
       .from("customers")
       .select("*")
       .eq("line_user_id", lineUserId)
-      .single()
+      .maybeSingle()
     if (error) {
       console.error({ reason: "CustomerDAO.findByLineUserId", error })
       return null
     }
+    if (!data) return null
     return data as Customer
   }
 
@@ -256,12 +259,13 @@ export class SurveyDAO {
       .from("surveys")
       .select("id, node_id, message_nodes!inner(id,story_id)")
       .eq("id", surveyId)
-      .single()
+      .maybeSingle()
 
     if (error) {
       console.error({ reason: "SurveyDAO.getStoryIdBySurveyId", error })
       return null
     }
+    if (!data) return null
     return (data as any)?.message_nodes?.story_id ?? null
   }
 
@@ -274,11 +278,12 @@ export class SurveyDAO {
       .select("*")
       .eq("survey_id", surveyId)
       .eq("order_index", orderIndex)
-      .single()
+      .maybeSingle()
     if (error) {
       console.error({ reason: "SurveyDAO.getQuestionByOrder", error })
       return null
     }
+    if (!data) return null
     return data as SurveyQuestion
   }
 
@@ -300,11 +305,12 @@ export class SurveyDAO {
       .from("survey_questions")
       .select("*")
       .eq("id", id)
-      .single()
+      .maybeSingle()
     if (error) {
       console.error({ reason: "SurveyDAO.getQuestionById", error })
       return null
     }
+    if (!data) return null
     return data as SurveyQuestion
   }
 
@@ -330,11 +336,12 @@ export class SurveyDAO {
       .select("*")
       .eq("survey_id", surveyId)
       .eq("customer_id", customerId)
-      .single()
+      .maybeSingle()
     if (error) {
       console.error({ reason: "SurveyDAO.getSession", error })
       return null
     }
+    if (!data) return null
     return data as SurveySession
   }
 
@@ -420,11 +427,12 @@ export class SurveyDAO {
       .select("*")
       .eq("survey_id", surveyId)
       .eq("customer_id", customerId)
-      .single()
+      .maybeSingle()
     if (error) {
       console.error({ reason: "SurveyDAO.findResponse", error })
       return null
     }
+    if (!data) return null
     return data as SurveyResponse
   }
 

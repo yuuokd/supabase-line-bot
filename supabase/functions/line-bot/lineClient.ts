@@ -6,6 +6,34 @@ export class LineClient {
     private channelSecret?: string | null,
   ) {}
 
+  async getProfile(userId: string): Promise<
+    | { displayName?: string; pictureUrl?: string; statusMessage?: string }
+    | null
+  > {
+    try {
+      const res = await fetch(
+        `https://api.line.me/v2/bot/profile/${userId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${this.accessToken}`,
+          },
+        },
+      )
+      if (!res.ok) {
+        console.error({
+          reason: "LineClient.getProfile",
+          status: res.status,
+          text: await res.text(),
+        })
+        return null
+      }
+      return await res.json()
+    } catch (error) {
+      console.error({ reason: "LineClient.getProfile.fetch_error", error })
+      return null
+    }
+  }
+
   async validateSignature(
     bodyText: string,
     signatureHeader: string | null,

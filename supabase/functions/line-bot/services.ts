@@ -57,9 +57,10 @@ export class WebhookService {
   private async handleFollow(event: LineEvent) {
     const lineUserId = event.source?.userId
     if (!lineUserId) return
+    const profile = await this.deps.lineClient.getProfile(lineUserId)
     const customer = await this.deps.customerDao.upsertFromFollow(
       lineUserId,
-      null,
+      profile?.displayName ?? null,
     )
     if (!customer) return
 
