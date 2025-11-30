@@ -1,8 +1,13 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
-export const supabaseClient = () => createClient(
-    // Supabase API URL - env var exported by default.
-    Deno.env.get('SUPABASE_URL') ?? '',
-    // Use service role in Edge Functions so inserts/updates bypass RLS for server-side tasks.
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-)
+// Factory to create a Supabase server-side client using the service role key.
+export const supabaseClient = () =>
+  createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    {
+      global: {
+        headers: { "x-application-name": "line-webhook-edge-func" },
+      },
+    },
+  )
