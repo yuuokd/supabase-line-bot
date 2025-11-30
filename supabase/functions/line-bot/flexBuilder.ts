@@ -72,6 +72,29 @@ export class FlexMessageBuilder {
     )
   }
 
+  buildYesNoQuestion(
+    question: SurveyQuestion,
+    template: FlexTemplate,
+    yesPayload: OptionPayload,
+    noPayload: OptionPayload,
+  ): LineMessage {
+    const bubble = this.deepClone(template.layout_json)
+    const filled = this.replacePlaceholders(bubble, {
+      "{QUESTION_TITLE}": question.question_text,
+      "{QUESTION_TEXT}": question.question_text,
+      "{YES_LABEL}": yesPayload.label,
+      "{YES_DISPLAY}": yesPayload.displayText ?? yesPayload.label,
+      "{YES_DATA}": JSON.stringify(yesPayload.data),
+      "{NO_LABEL}": noPayload.label,
+      "{NO_DISPLAY}": noPayload.displayText ?? noPayload.label,
+      "{NO_DATA}": JSON.stringify(noPayload.data),
+    })
+    return this.toFlexMessage(
+      filled,
+      question.question_text ?? "アンケート",
+    )
+  }
+
   buildFreeTextQuestion(
     question: SurveyQuestion,
     template: FlexTemplate,

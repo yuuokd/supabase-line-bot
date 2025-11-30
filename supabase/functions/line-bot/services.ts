@@ -326,6 +326,11 @@ export class WebhookService {
       nextOrderIndex = 5 // skip free text
       sessionIndex = 4 // consider skipped question handled
     }
+    if (question.order_index === 4 && this.isOtherUniversity(value)) {
+      // If still marked OTHER, proceed to Q5 (safety)
+      nextOrderIndex = 5
+      sessionIndex = 4
+    }
 
     const nextQuestion = await this.deps.surveyDao.getQuestionByOrder(
       surveyId,
@@ -430,6 +435,35 @@ export class WebhookService {
         question,
         template,
         payload,
+      )
+    } else if (template.name === "survey_yes_no") {
+      const yesPayload = {
+        label: "はい",
+        displayText: "はい",
+        data: {
+          action: "answer",
+          surveyId,
+          questionId: question.id,
+          orderIndex: question.order_index,
+          optionValue: "yes",
+        },
+      }
+      const noPayload = {
+        label: "いいえ",
+        displayText: "いいえ",
+        data: {
+          action: "answer",
+          surveyId,
+          questionId: question.id,
+          orderIndex: question.order_index,
+          optionValue: "no",
+        },
+      }
+      message = this.deps.flexBuilder.buildYesNoQuestion(
+        question,
+        template,
+        yesPayload,
+        noPayload,
       )
     } else {
       return
@@ -570,7 +604,7 @@ export class WebhookService {
     const getValueByOrder = (order: number) =>
       answers.find((a) => a.orderIndex === order)?.value ?? null
 
-    const updates: Record<string, string | null> = {}
+    const updates: Record<string, string | null | boolean> = {}
     const gradeId = getValueByOrder(1)
     if (gradeId) updates["grade_id"] = gradeId
     const majorId = getValueByOrder(2)
@@ -589,6 +623,11 @@ export class WebhookService {
     }
     const prefectureId = getValueByOrder(6)
     if (prefectureId) updates["prefecture_id"] = prefectureId
+    const optInValue = getValueByOrder(7)
+    if (optInValue) {
+      updates["opt_in"] = optInValue === "yes" ? true : false
+      updates["is_blocked"] = optInValue === "yes" ? false : updates["is_blocked"]
+    }
 
     // TODO: Q3/Q4 university handling when option outside catalog is supported
 

@@ -96,6 +96,8 @@ export class CustomerDAO {
       major_id: string | null
       prefecture_id: string | null
       university_id: string | null
+      opt_in: boolean
+      is_blocked: boolean
     }>,
   ): Promise<void> {
     const { error } = await this.client
