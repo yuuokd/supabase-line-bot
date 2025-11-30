@@ -140,6 +140,20 @@ export class StoryDAO {
     }
     return data as MessageNode
   }
+
+  async getNodeById(id: string): Promise<MessageNode | null> {
+    const { data, error } = await this.client
+      .from("message_nodes")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle()
+    if (error) {
+      console.error({ reason: "StoryDAO.getNodeById", error })
+      return null
+    }
+    if (!data) return null
+    return data as MessageNode
+  }
 }
 
 export class FlexTemplateDAO {
@@ -201,10 +215,75 @@ export class UserFlowDAO {
   async completeFlow(customerId: string, storyId: string): Promise<void> {
     const { error } = await this.client
       .from("user_flows")
-      .update({ status: "completed", updated_at: new Date().toISOString() })
+      .update({
+        status: "completed",
+        next_scheduled_at: null,
+        updated_at: new Date().toISOString(),
+      })
       .eq("customer_id", customerId)
       .eq("story_id", storyId)
     if (error) console.error({ reason: "UserFlowDAO.completeFlow", error })
+  }
+
+  async updateSchedule(
+    customerId: string,
+    storyId: string,
+    nextScheduledAt: string | null,
+  ): Promise<void> {
+    const { error } = await this.client
+      .from("user_flows")
+      .update({
+        next_scheduled_at: nextScheduledAt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("customer_id", customerId)
+      .eq("story_id", storyId)
+    if (error) console.error({ reason: "UserFlowDAO.updateSchedule", error })
+  }
+
+  async updateCurrentNodeAndSchedule(
+    flowId: string,
+    nextNodeId: string | null,
+    nextScheduledAt: string | null,
+    status: "in_progress" | "completed",
+  ) {
+    const { error } = await this.client
+      .from("user_flows")
+      .update({
+        current_node_id: nextNodeId,
+        next_scheduled_at: nextScheduledAt,
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", flowId)
+    if (error) {
+      console.error({ reason: "UserFlowDAO.updateCurrentNodeAndSchedule", error })
+    }
+  }
+
+  async findDueFlows(nowIso: string) {
+    const { data, error } = await this.client
+      .from("user_flows")
+      .select(
+        `
+        id,
+        customer_id,
+        story_id,
+        current_node_id,
+        next_scheduled_at,
+        status,
+        customers!inner(line_user_id),
+        message_nodes!inner(id,next_node_id,flex_template_id,title,body_text,image_url)
+      `,
+      )
+      .lte("next_scheduled_at", nowIso)
+      .eq("status", "in_progress")
+
+    if (error) {
+      console.error({ reason: "UserFlowDAO.findDueFlows", error })
+      return []
+    }
+    return data ?? []
   }
 }
 

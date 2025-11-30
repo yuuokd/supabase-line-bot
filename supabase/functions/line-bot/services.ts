@@ -124,6 +124,12 @@ export class WebhookService {
 
     await this.deps.lineClient.push(lineUserId, [message])
     await this.deps.storyTargetDao.logSent(entryNode.id, customer.id, "sent")
+    const nextDay = this.addDays(1)
+    await this.deps.userFlowDao.updateSchedule(
+      customer.id,
+      story.id,
+      nextDay.toISOString(),
+    )
   }
 
   private async handleUnfollow(event: LineEvent) {
@@ -161,6 +167,9 @@ export class WebhookService {
         break
       case "start_free_text":
         await this.handleStartFreeText(payload, customer, event.replyToken)
+        break
+      case "complete_flow":
+        await this.handleCompleteFlow(payload, customer, event.replyToken)
         break
       default:
         console.log("Unknown postback action", payload.action)
@@ -263,6 +272,21 @@ export class WebhookService {
       await this.deps.lineClient.push(customer.line_user_id, [
         { type: "text", text: "テキストで回答を入力してください。" },
       ])
+    }
+  }
+
+  private async handleCompleteFlow(
+    payload: PostbackPayload,
+    customer: Customer,
+    replyToken?: string,
+  ) {
+    if (!payload.storyId) return
+    // Keep status/schedule unchanged; only acknowledge.
+    const thankYou = { type: "text", text: "ご確認ありがとうございました。" }
+    if (replyToken) {
+      await this.deps.lineClient.reply(replyToken, [thankYou])
+    } else {
+      await this.deps.lineClient.push(customer.line_user_id, [thankYou])
     }
   }
 
@@ -375,6 +399,11 @@ export class WebhookService {
     const storyId = await this.deps.surveyDao.getStoryIdBySurveyId(surveyId)
     if (storyId) {
       await this.deps.userFlowDao.completeFlow(customer.id, storyId)
+      await this.deps.userFlowDao.updateSchedule(
+        customer.id,
+        storyId,
+        this.addDays(1).toISOString(),
+      )
     }
 
     await this.updateCustomerProfileFromSurvey(surveyId, customer.id)
@@ -498,6 +527,22 @@ export class WebhookService {
       surveyId,
       questionId: question.id,
       orderIndex: question.order_index,
+    }
+
+    // Prefer survey_options tied to the question_id if available.
+    const predefinedOptions = await this.deps.surveyDao.getOptions(
+      question.id,
+    )
+    if (predefinedOptions.length > 0) {
+      return predefinedOptions.slice(0, 12).map((opt) => ({
+        label: opt.label,
+        displayText: opt.label,
+        data: {
+          ...payloadBase,
+          optionValue: opt.value,
+          optionId: opt.id,
+        },
+      }))
     }
 
     switch (question.order_index) {
@@ -649,5 +694,11 @@ export class WebhookService {
 
   private isOtherUniversity(value?: string | null): boolean {
     return value === "OTHER" || value === "その他"
+  }
+
+  private addDays(days: number): Date {
+    const now = new Date()
+    now.setDate(now.getDate() + days)
+    return now
   }
 }
