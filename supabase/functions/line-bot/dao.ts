@@ -261,6 +261,28 @@ export class UserFlowDAO {
     }
   }
 
+  async updateFlowByCustomerAndStory(
+    customerId: string,
+    storyId: string,
+    nextNodeId: string | null,
+    nextScheduledAt: string | null,
+    status: "in_progress" | "completed",
+  ) {
+    const { error } = await this.client
+      .from("user_flows")
+      .update({
+        current_node_id: nextNodeId,
+        next_scheduled_at: nextScheduledAt,
+        status,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("customer_id", customerId)
+      .eq("story_id", storyId)
+    if (error) {
+      console.error({ reason: "UserFlowDAO.updateFlowByCustomerAndStory", error })
+    }
+  }
+
   async findDueFlows(nowIso: string) {
     const { data, error } = await this.client
       .from("user_flows")

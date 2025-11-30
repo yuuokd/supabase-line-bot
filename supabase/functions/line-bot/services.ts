@@ -397,13 +397,24 @@ export class WebhookService {
     await this.deps.surveyDao.markResponseSubmitted(response.id)
 
     const storyId = await this.deps.surveyDao.getStoryIdBySurveyId(surveyId)
+    const surveyRecord = await this.deps.surveyDao.findById(surveyId)
+    const surveyNode = surveyRecord?.node_id
+      ? await this.deps.storyDao.getNodeById(surveyRecord.node_id)
+      : null
+    const nextNodeId = (surveyNode as any)?.next_node_id ?? null
+
     if (storyId) {
-      await this.deps.userFlowDao.completeFlow(customer.id, storyId)
-      await this.deps.userFlowDao.updateSchedule(
-        customer.id,
-        storyId,
-        this.scheduleAfterDays(4).toISOString(),
-      )
+      if (nextNodeId) {
+        await this.deps.userFlowDao.updateFlowByCustomerAndStory(
+          customer.id,
+          storyId,
+          nextNodeId,
+          this.scheduleAfterDays(4).toISOString(),
+          "in_progress",
+        )
+      } else {
+        await this.deps.userFlowDao.completeFlow(customer.id, storyId)
+      }
     }
 
     await this.updateCustomerProfileFromSurvey(surveyId, customer.id)
@@ -699,7 +710,7 @@ export class WebhookService {
   private scheduleAfterDays(days: number): Date {
     const d = new Date()
     d.setDate(d.getDate() + days)
-    d.setHours(20, 0, 0, 0) // schedule at 20:00 local time
+    d.setHours(10, 0, 0, 0) // schedule at 10:00 utc
     return d
   }
 }
