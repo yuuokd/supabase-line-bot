@@ -44,7 +44,7 @@ export class FlexMessageBuilder {
   ): LineMessage {
     const rawBubble: any = this.deepClone(template.layout_json)
     const replacements: Record<string, string> = {
-      "{QUESTION_TITLE}": question.question_text,
+      "{QUESTION_TITLE}": question.question_title,
       "{QUESTION_TEXT}": question.question_text,
     }
     const bubble = this.replacePlaceholders(rawBubble, replacements)
@@ -80,7 +80,7 @@ export class FlexMessageBuilder {
   ): LineMessage {
     const bubble = this.deepClone(template.layout_json)
     const filled = this.replacePlaceholders(bubble, {
-      "{QUESTION_TITLE}": question.question_text,
+      "{QUESTION_TITLE}": question.question_title,
       "{QUESTION_TEXT}": question.question_text,
       "{YES_LABEL}": yesPayload.label,
       "{YES_DISPLAY}": yesPayload.displayText ?? yesPayload.label,
@@ -102,7 +102,7 @@ export class FlexMessageBuilder {
   ): LineMessage {
     const bubble = this.deepClone(template.layout_json)
     const filled = this.replacePlaceholders(bubble, {
-      "{QUESTION_TITLE}": question.question_text,
+      "{QUESTION_TITLE}": question.question_title,
       "{QUESTION_TEXT}": question.question_text,
       "{START_LABEL}": payload.label,
       "{START_DISPLAY}": payload.displayText ?? payload.label,

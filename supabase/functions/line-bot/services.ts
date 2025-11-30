@@ -223,6 +223,14 @@ export class WebhookService {
       payload.questionId,
     )
     if (!question) return
+    const session = await this.deps.surveyDao.getSession(
+      payload.surveyId,
+      customer.id,
+    )
+    if (session?.status === "completed") {
+      console.log("Survey already completed; ignore answer postback.")
+      return
+    }
 
     await this.persistAnswerAndStepNext({
       surveyId: payload.surveyId,
@@ -244,7 +252,7 @@ export class WebhookService {
       payload.surveyId,
       customer.id,
     )
-    if (!session) return
+    if (!session || session.status === "completed") return
 
     await this.deps.surveyDao.updateSessionStatus(session.id, "awaiting_text")
     if (replyToken) {
@@ -281,7 +289,10 @@ export class WebhookService {
         "in_progress",
         0,
       )
-    if (!ensuredSession) return
+    if (!ensuredSession || ensuredSession.status === "completed") {
+      console.log("Survey already completed; ignore further answers.")
+      return
+    }
 
     const response = await this.deps.surveyDao.upsertResponse(
       surveyId,

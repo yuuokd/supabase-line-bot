@@ -14,6 +14,7 @@ type UpsertCustomerInput = {
     line_display_name?: string | null
     is_blocked?: boolean
     blocked_at?: string | null
+    opt_in?: boolean
     updated_at?: string
 }
 
@@ -165,6 +166,7 @@ export class CustomerRepository {
                     line_display_name: customer.line_display_name,
                     is_blocked: customer.is_blocked,
                     blocked_at: customer.blocked_at,
+                    opt_in: customer.opt_in,
                     updated_at: customer.updated_at,
                 })
                 .eq("line_user_id", customer.line_user_id)
@@ -204,6 +206,7 @@ export class CustomerRepository {
             .update({
                 is_blocked: false,
                 blocked_at: null,
+                opt_in: true,
                 updated_at: updatedAt,
             })
             .in("line_user_id", lineUserIds)
@@ -233,6 +236,7 @@ export class FriendService {
             line_display_name: profile?.displayName ?? null,
             is_blocked: false,
             blocked_at: null,
+            opt_in: true,
             updated_at: now,
         }
 
@@ -304,6 +308,7 @@ export class FriendService {
                 line_display_name: profile?.displayName ?? null,
                 is_blocked: false,
                 blocked_at: null,
+                opt_in: true,
                 updated_at,
             })
         }

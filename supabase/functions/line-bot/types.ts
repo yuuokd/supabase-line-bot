@@ -58,6 +58,7 @@ export interface SurveyQuestion {
   id: string
   survey_id: string
   order_index: number
+  question_title?: string | null
   question_text: string
   required: boolean
   flex_template_id: string
