@@ -3,6 +3,7 @@ export class Quiz {
   _question = "";
   _answer = "";
   _errorrMessages = [];
+
   constructor({question, answer}) {
     this._question = question;
     this._answer = answer;
@@ -14,6 +15,7 @@ export class Quiz {
       .insert({ answer: this._answer, question: this._question })
     if(error) console.log({caused: "Quiz.saveToSupabase", error})
   }
+
   savedMessages() {
     return [
       {
