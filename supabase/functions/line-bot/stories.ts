@@ -197,10 +197,38 @@ const renderTemplate = (
     layout: Record<string, unknown>,
     replacements: Record<string, string>,
 ) => {
-    const raw = JSON.stringify(layout)
-    const replaced = raw.replace(
-        /\{([A-Z0-9_]+)\}/g,
-        (_, key) => replacements[key] ?? "",
-    )
-    return JSON.parse(replaced)
+    const replaceValue = (value: any): any => {
+        if (Array.isArray(value)) {
+            return value.map((v) => replaceValue(v))
+        }
+
+        if (value && typeof value === "object") {
+            const result: Record<string, unknown> = {}
+            Object.entries(value).forEach(([k, v]) => {
+                result[k] = replaceValue(v)
+            })
+            return result
+        }
+
+        if (typeof value === "string") {
+            // 単独プレースホルダのみの場合はその値に置き換え（文字列以外も許容）
+            const exactMatch = value.match(/^\{([A-Z0-9_]+)\}$/)
+            if (exactMatch) {
+                const key = exactMatch[1]
+                if (key in replacements) {
+                    return replacements[key]
+                }
+                return value
+            }
+
+            // 文字列中のプレースホルダ置換
+            return value.replace(/\{([A-Z0-9_]+)\}/g, (_, key) =>
+                (replacements[key] ?? "")
+            )
+        }
+
+        return value
+    }
+
+    return replaceValue(layout)
 }

@@ -130,18 +130,7 @@ export class CustomerRepository {
     async upsertAll(customers: UpsertCustomerInput[]) {
         if (customers.length === 0) return
 
-        const { error } = await this.client
-            .from("customers")
-            .upsert(customers, { onConflict: "line_user_id" })
-
-        if (!error) return
-
-        console.error({ caused: "CustomerRepository.upsertAll", error })
-
-        // Fallback: when line_user_id is not unique in the DB (error 42P10)
-        if (error.code === "42P10") {
-            await this.fallbackMerge(customers)
-        }
+        await this.fallbackMerge(customers)
     }
 
     private async fallbackMerge(customers: UpsertCustomerInput[]) {
