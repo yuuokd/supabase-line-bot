@@ -112,6 +112,7 @@ async function processDueFlows() {
   return { due: dueFlows.length, sent, completed }
 }
 
+// 指定日数後の 0:00（UTC）を返す。次回配信のスケジュール設定に利用。
 function scheduleAfterDays(days: number): Date {
   const d = new Date()
   d.setDate(d.getDate() + days)
