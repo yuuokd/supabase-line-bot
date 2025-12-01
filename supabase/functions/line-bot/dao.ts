@@ -12,6 +12,7 @@ import {
   SurveySession,
 } from "./types.ts"
 
+// 顧客テーブル操作（follow/upsert, block, プロフィール更新など）
 export class CustomerDAO {
   constructor(private client: SupabaseClient) {}
 
@@ -108,6 +109,7 @@ export class CustomerDAO {
   }
 }
 
+// ストーリーとノード関連のDAO
 export class StoryDAO {
   constructor(private client: SupabaseClient) {}
 
@@ -186,6 +188,7 @@ export class FlexTemplateDAO {
   }
 }
 
+// ユーザーごとのストーリーフロー進行状況を管理するDAO
 export class UserFlowDAO {
   constructor(private client: SupabaseClient) {}
 
@@ -310,6 +313,7 @@ export class UserFlowDAO {
   }
 }
 
+// 配信ログ（story_targets）を扱うDAO
 export class StoryTargetDAO {
   constructor(private client: SupabaseClient) {}
 
@@ -330,6 +334,7 @@ export class StoryTargetDAO {
   }
 }
 
+// アンケート（surveys/sessions/answers）関連 DAO
 export class SurveyDAO {
   constructor(private client: SupabaseClient) {}
 
@@ -656,6 +661,8 @@ export class SurveyDAO {
   }
 }
 
+// マスタ系テーブル取得＋自由入力大学の登録
+// マスタ系テーブル取得＋自由入力大学の登録
 export class MasterDataDAO {
   constructor(private client: SupabaseClient) {}
 

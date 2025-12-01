@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+// line-bot-scheduler: next_scheduled_at が過ぎたフローをキックするだけの定期配信用 Edge Function
 import { supabaseClient } from "../line-bot/supabaseClient.ts"
 import {
   CustomerDAO,
@@ -26,6 +27,7 @@ const customerDao = new CustomerDAO(supabase)
 const flexBuilder = new FlexMessageBuilder()
 
 async function processDueFlows() {
+  // Fetch flows whose next_scheduled_at has passed and push the next node.
   const nowIso = new Date().toISOString()
   const dueFlows = await flowDao.findDueFlows(nowIso)
   let sent = 0

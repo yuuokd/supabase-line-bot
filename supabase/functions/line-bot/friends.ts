@@ -18,6 +18,7 @@ type UpsertCustomerInput = {
     updated_at?: string
 }
 
+// LINE公式 API を使ってフォロワーやプロフィールを取得するクライアント
 export class LineApiClient {
     private accessToken: string
     private headers: Record<string, string>
@@ -93,6 +94,7 @@ export class LineApiClient {
     }
 }
 
+// Supabase の customers / user_flows を扱うリポジトリ（同期バッチ用）
 export class CustomerRepository {
     private client: SupabaseClient
 
@@ -233,6 +235,7 @@ export class CustomerRepository {
     }
 }
 
+// LINE フォロワーの同期と顧客レコードの生成/復帰を行うサービス
 export class FriendService {
     private lineClient: LineApiClient
     private customerRepository: CustomerRepository

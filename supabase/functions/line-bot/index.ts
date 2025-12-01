@@ -1,3 +1,4 @@
+// LINE Webhook エントリーポイント。署名検証→イベントループ→各ハンドラに委譲する。
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { supabaseClient } from "./supabaseClient.ts"
 import {
@@ -36,6 +37,7 @@ console.log("LINE webhook function booted")
 
 serve(async (req) => {
   try {
+    // 署名検証は生ボディ文字列で行う必要がある
     const bodyText = await req.text()
     const signature = req.headers.get("x-line-signature")
     const validSignature = await lineClient.validateSignature(
@@ -47,6 +49,7 @@ serve(async (req) => {
       return new Response("invalid signature", { status: 401 })
     }
 
+    // イベント配列をパースしてすべてのイベントを順次処理
     const body = JSON.parse(bodyText)
     const events: LineEvent[] = body?.events ?? []
     for (const event of events) {

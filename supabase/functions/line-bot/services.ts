@@ -20,6 +20,7 @@ const PROFILE_STORY_TITLE = "初回プロフィール登録ストーリー"
 
 type MessageRoute = "push" | "reply"
 
+// LINE webhook のイベント処理を集約するサービス層
 export class WebhookService {
   constructor(
     private deps: {
@@ -35,18 +36,23 @@ export class WebhookService {
     },
   ) {}
 
+  // 受信イベントを種別ごとにハンドラへ振り分ける。未知タイプは無視。
   async handleEvent(event: LineEvent) {
+    // Dispatch LINE event types to dedicated handlers; unknown types are ignored.
     switch (event.type) {
       case "follow":
+        // 友だち追加。顧客を upsert し、初回ストーリーとアンケートを開始
         await this.handleFollow(event)
         break
       case "unfollow":
         await this.handleUnfollow(event)
         break
       case "postback":
+        // ボタン押下や free_text 開始など、postback.data の action で分岐
         await this.handlePostback(event)
         break
       case "message":
+        // free_text 回答待ちのときのみテキストを回答として処理
         await this.handleMessage(event)
         break
       default:
@@ -54,7 +60,10 @@ export class WebhookService {
     }
   }
 
+  // follow: 顧客レコードを upsert し、初回プロフィールストーリー入口ノードを push。
+  // 入口ノードに紐づくアンケートがあれば開始ボタン用 postback を差し込む。
   private async handleFollow(event: LineEvent) {
+    // Start or restart the initial profile story for a user who just followed.
     const lineUserId = event.source?.userId
     if (!lineUserId) return
     const profile = await this.deps.lineClient.getProfile(lineUserId)
@@ -105,6 +114,7 @@ export class WebhookService {
       return
     }
 
+    // 初回ノードは content_text_only で Push し、アンケート開始用 postback を付与
     const message = this.deps.flexBuilder.buildContentMessage(template, {
       title: entryNode.title ?? "お知らせ",
       bodyText: entryNode.body_text ?? "",
@@ -133,12 +143,15 @@ export class WebhookService {
   }
 
   private async handleUnfollow(event: LineEvent) {
+    // Mark the user as blocked when they unfollow.
     const lineUserId = event.source?.userId
     if (!lineUserId) return
     await this.deps.customerDao.markBlocked(lineUserId)
   }
 
+  // postback: survey の開始/回答/記述開始、フロー確認を action ごとに分岐。
   private async handlePostback(event: LineEvent) {
+    // Postback covers survey navigation, free-text starts, and flow completion.
     if (!event.postback?.data) return
     const payload = this.parsePostback(event.postback.data)
     if (!payload) return
@@ -176,7 +189,9 @@ export class WebhookService {
     }
   }
 
+  // 通常メッセージは free_text 回答待ちのセッションにのみ利用し、それ以外は無視。
   private async handleMessage(event: LineEvent) {
+    // Free-text answer handler when waiting for text response in a survey.
     const text = event.message?.text ?? ""
     if (!text) return
     const lineUserId = event.source?.userId
@@ -263,6 +278,7 @@ export class WebhookService {
     )
     if (!session || session.status === "completed") return
 
+    // 記述式の回答待ち状態にして、次のテキストメッセージを回答扱いにする
     await this.deps.surveyDao.updateSessionStatus(session.id, "awaiting_text")
     if (replyToken) {
       await this.deps.lineClient.reply(replyToken, [
@@ -275,6 +291,7 @@ export class WebhookService {
     }
   }
 
+  // アンケートなし message_node の確認ボタン押下時。ステータスは維持しサンクスのみ返す。
   private async handleCompleteFlow(
     payload: PostbackPayload,
     customer: Customer,
@@ -302,6 +319,7 @@ export class WebhookService {
   ) {
     const { surveyId, customer, question, optionId, value, replyToken } =
       params
+    // Persist one answer, advance to the next question, or finish the flow.
     const session = await this.deps.surveyDao.getSession(
       surveyId,
       customer.id,

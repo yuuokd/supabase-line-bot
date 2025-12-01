@@ -1,11 +1,13 @@
 import { LineMessage } from "./types.ts"
 
+// LINE Messaging API との通信・署名検証を担当
 export class LineClient {
   constructor(
     private accessToken: string,
     private channelSecret?: string | null,
   ) {}
 
+  // LINE プロフィール取得（フォロー時の表示名取得に利用）
   async getProfile(userId: string): Promise<
     | { displayName?: string; pictureUrl?: string; statusMessage?: string }
     | null
@@ -46,6 +48,7 @@ export class LineClient {
     }
   }
 
+  // LINE 署名検証（channel secret 未設定時はスキップ）
   async validateSignature(
     bodyText: string,
     signatureHeader: string | null,
@@ -74,6 +77,7 @@ export class LineClient {
     return base64Signature === signatureHeader
   }
 
+  // Reply API 呼び出し
   async reply(replyToken: string, messages: LineMessage[]) {
     console.log({
       direction: "outgoing",

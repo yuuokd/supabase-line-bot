@@ -6,6 +6,8 @@ type OptionPayload = {
   displayText?: string
 }
 
+// Flex テンプレートのプレースホルダを差し込み、LINE メッセージを構築する
+// 各 build メソッドはテンプレートの期待するプレースホルダに data/postback を埋め込む
 export class FlexMessageBuilder {
   buildContentMessage(
     template: FlexTemplate,
