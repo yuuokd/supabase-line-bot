@@ -6,9 +6,15 @@ type OptionPayload = {
   displayText?: string
 }
 
-// Flex テンプレートのプレースホルダを差し込み、LINE メッセージを構築する
-// 各 build メソッドはテンプレートの期待するプレースホルダに data/postback を埋め込む
+// Flex テンプレートのプレースホルダを差し込み、LINE メッセージを構築するビルダー。
+// - buildContentMessage: 通常コンテンツ配信用（タイトル/本文/画像＋ボタン）
+// - buildMultiChoiceQuestion: 複数選択式アンケート（survey_multi_choice_12 前提）
+// - buildYesNoQuestion: Yes/No 質問（survey_yes_no 前提）
+// - buildFreeTextQuestion: 記述式開始ボタン付き質問（survey_free_text_with_postback 前提）
+// いずれもテンプレートに期待される {PLACEHOLDER} を置換し、postback data を埋め込む。
 export class FlexMessageBuilder {
+
+  // buildContentMessage: 通常コンテンツ配信用（タイトル/本文/画像＋ボタン）
   buildContentMessage(
     template: FlexTemplate,
     params: {
@@ -21,6 +27,7 @@ export class FlexMessageBuilder {
       altText?: string
     },
   ): LineMessage {
+    // コンテンツ用バブルにタイトル/本文/メインボタンを差し込む
     const bubble = this.deepClone(template.layout_json)
     const replacements: Record<string, string> = {
       "{TITLE}": params.title,
@@ -39,11 +46,14 @@ export class FlexMessageBuilder {
     )
   }
 
+
+  // buildMultiChoiceQuestion: 複数選択式アンケート（survey_multi_choice_12 前提）
   buildMultiChoiceQuestion(
     question: SurveyQuestion,
     template: FlexTemplate,
     options: OptionPayload[],
   ): LineMessage {
+    // survey_multi_choice_12 用の 12 ボタンに postback を割り当てる
     const rawBubble: any = this.deepClone(template.layout_json)
     const replacements: Record<string, string> = {
       "{QUESTION_TITLE}": question.question_title,
@@ -74,12 +84,15 @@ export class FlexMessageBuilder {
     )
   }
 
+  
+  // buildYesNoQuestion: Yes/No 質問（survey_yes_no 前提）
   buildYesNoQuestion(
     question: SurveyQuestion,
     template: FlexTemplate,
     yesPayload: OptionPayload,
     noPayload: OptionPayload,
   ): LineMessage {
+    // Yes/No 2択を持つテンプレに postback を埋め込む
     const bubble = this.deepClone(template.layout_json)
     const filled = this.replacePlaceholders(bubble, {
       "{QUESTION_TITLE}": question.question_title,
@@ -97,11 +110,14 @@ export class FlexMessageBuilder {
     )
   }
 
+
+  // buildFreeTextQuestion: 記述式開始ボタン付き質問（survey_free_text_with_postback 前提）
   buildFreeTextQuestion(
     question: SurveyQuestion,
     template: FlexTemplate,
     payload: OptionPayload,
   ): LineMessage {
+    // 記述式開始ボタン付きテンプレに postback を埋め込む
     const bubble = this.deepClone(template.layout_json)
     const filled = this.replacePlaceholders(bubble, {
       "{QUESTION_TITLE}": question.question_title,
@@ -120,6 +136,7 @@ export class FlexMessageBuilder {
     node: unknown,
     replacements: Record<string, string>,
   ): any {
+    // JSON/配列/文字列に対し {KEY} を置換して再帰的に返す
     if (typeof node === "string") {
       let replaced = node
       Object.entries(replacements).forEach(([key, value]) => {
@@ -146,10 +163,12 @@ export class FlexMessageBuilder {
   }
 
   private deepClone<T>(value: T): T {
+    // テンプレートを破壊しないよう JSON 経由でディープコピー
     return JSON.parse(JSON.stringify(value))
   }
 
   private toFlexMessage(contents: Record<string, unknown>, altText: string) {
+    // LINE Flex Message 形式に整形
     return {
       type: "flex",
       altText,

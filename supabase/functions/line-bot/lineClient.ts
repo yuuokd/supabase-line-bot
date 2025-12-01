@@ -1,13 +1,17 @@
 import { LineMessage } from "./types.ts"
 
-// LINE Messaging API との通信・署名検証を担当
+// LINE Messaging API との通信・署名検証を担当するヘルパー。
+// 利用シーン:
+// - getProfile: フォロー時に displayName などを取得し DB に保存する
+// - validateSignature: Webhook 受信時にリクエスト改ざんを検知する
+// - reply / push: Webhook ハンドラやスケジューラからメッセージを送信する
 export class LineClient {
   constructor(
     private accessToken: string,
     private channelSecret?: string | null,
   ) {}
 
-  // LINE プロフィール取得（フォロー時の表示名取得に利用）
+  // LINE プロフィール取得（フォロー時の表示名取得などに利用）
   async getProfile(userId: string): Promise<
     | { displayName?: string; pictureUrl?: string; statusMessage?: string }
     | null
@@ -48,7 +52,7 @@ export class LineClient {
     }
   }
 
-  // LINE 署名検証（channel secret 未設定時はスキップ）
+  // LINE 署名検証（channel secret 未設定時はスキップ）。Webhook 改ざん防止に利用。
   async validateSignature(
     bodyText: string,
     signatureHeader: string | null,
@@ -77,7 +81,7 @@ export class LineClient {
     return base64Signature === signatureHeader
   }
 
-  // Reply API 呼び出し
+  // Reply API 呼び出し（Webhook で replyToken がある場合に利用）
   async reply(replyToken: string, messages: LineMessage[]) {
     console.log({
       direction: "outgoing",
@@ -91,6 +95,7 @@ export class LineClient {
     })
   }
 
+  // Push API 呼び出し（replyToken が無い場合や定期配信で利用）
   async push(to: string, messages: LineMessage[]) {
     console.log({
       direction: "outgoing",
@@ -104,6 +109,7 @@ export class LineClient {
     })
   }
 
+  // 内部共通の POST ラッパー。LINE API 呼び出し結果をロギングし、非 2xx ならエラーログ。
   private async post(url: string, payload: Record<string, unknown>) {
     try {
       const res = await fetch(url, {

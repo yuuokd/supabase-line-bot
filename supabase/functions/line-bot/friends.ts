@@ -19,6 +19,8 @@ type UpsertCustomerInput = {
 }
 
 // LINE公式 API を使ってフォロワーやプロフィールを取得するクライアント
+// - fetchFollowers/fetchAllFollowerIds: フォロワーID一覧取得（ページネーション対応）
+// - fetchProfile: userId からプロフィール情報を取得
 export class LineApiClient {
     private accessToken: string
     private headers: Record<string, string>
@@ -31,6 +33,7 @@ export class LineApiClient {
         }
     }
 
+    // フォロワーIDを取得（LINE APIのページネーションstart対応）
     async fetchFollowers(start?: string) {
         const url = new URL("https://api.line.me/v2/bot/followers/ids")
         if (start) {
@@ -58,6 +61,7 @@ export class LineApiClient {
         }
     }
 
+    // すべてのフォロワーIDを取得（ページを跨いで連結）
     async fetchAllFollowerIds(): Promise<string[]> {
         let next: string | undefined
         const followerIds: string[] = []
@@ -71,6 +75,7 @@ export class LineApiClient {
         return followerIds
     }
 
+    // 1ユーザーのプロフィール情報を取得（displayName 取得に利用）
     async fetchProfile(userId: string) {
         const res = await fetch(
             `https://api.line.me/v2/bot/profile/${userId}`,
@@ -95,6 +100,9 @@ export class LineApiClient {
 }
 
 // Supabase の customers / user_flows を扱うリポジトリ（同期バッチ用）
+// - fetchAll: 既存顧客一覧を取得
+// - upsertAll: 顧客配列をまとめて挿入/更新（ユニーク制約に依存しないfallback）
+// - markBlocked/markActive: ブロック/復帰時のフラグ更新
 export class CustomerRepository {
     private client: SupabaseClient
 
@@ -130,12 +138,14 @@ export class CustomerRepository {
         return data ?? null
     }
 
+    // まとめて顧客を upsert（既存を確認して insert/update を分岐）
     async upsertAll(customers: UpsertCustomerInput[]) {
         if (customers.length === 0) return
 
         await this.fallbackMerge(customers)
     }
 
+    // customers リストを既存/新規に分けて insert または update を実行
     private async fallbackMerge(customers: UpsertCustomerInput[]) {
         const ids = customers.map((c) => c.line_user_id)
         const { data, error } = await this.client
@@ -183,6 +193,7 @@ export class CustomerRepository {
         }
     }
 
+    // ブロック状態に更新（is_blocked=true, blocked_at 打刻）
     async markBlocked(lineUserIds: string[], blockedAt: string) {
         if (lineUserIds.length === 0) return
 
@@ -200,6 +211,7 @@ export class CustomerRepository {
         }
     }
 
+    // ブロック解除時の処理（is_blocked=false, opt_in=true へ戻し、関連 user_flows を in_progress に戻す）
     async markActive(lineUserIds: string[], updatedAt: string) {
         if (lineUserIds.length === 0) return
 
@@ -236,6 +248,9 @@ export class CustomerRepository {
 }
 
 // LINE フォロワーの同期と顧客レコードの生成/復帰を行うサービス
+// - registerNewFriend: 単一ユーザーのフォローに応じて顧客作成
+// - markAsUnfollowed: 個別の unfollow をブロック状態に反映
+// - syncFollowers: 現在のフォロワー一覧とDBを突き合わせ、追加/再開/ブロックを一括更新
 export class FriendService {
     private lineClient: LineApiClient
     private customerRepository: CustomerRepository
@@ -245,6 +260,7 @@ export class FriendService {
         this.customerRepository = customerRepository
     }
 
+    // 単一ユーザーのフォローを検知した際に顧客を upsert する。表示名も保存。
     async registerNewFriend(userId?: string) {
         if (!userId) return
         const now = new Date().toISOString()
@@ -265,14 +281,20 @@ export class FriendService {
         return existing?.id
     }
 
+    // unfollow を受けた個別ユーザーをブロック扱いにする
     async markAsUnfollowed(userId?: string) {
         if (!userId) return
         const now = new Date().toISOString()
         await this.customerRepository.markBlocked([userId], now)
     }
 
-    async syncFollowers() {
-        try {
+    // LINE 上のフォロワー一覧と DB を突き合わせ、追加/復帰/ブロックを一括反映
+    // - followerIds: LINE API から現時点のフォロワーID一覧
+    // - existingCustomers: DB 既存顧客一覧
+    // - newIds: LINE にはいるが DB にいない → 新規作成
+    // - reactivatedIds: DB では is_blocked=true だが LINE にはいる → ブロック解除
+    // - blockedIds: DB では未ブロックだが LINE にはいない → ブロック扱いに更新
+    try {
             const followerIds = await this.lineClient.fetchAllFollowerIds()
             const existingCustomers = await this.customerRepository.fetchAll()
             const followerSet = new Set(followerIds)
@@ -317,6 +339,7 @@ export class FriendService {
         }
     }
 
+    // 新規フォロワー ID 群から顧客作成用のデータを組み立てる
     private async buildNewCustomers(ids: string[], updatedAt: string) {
         const customers: UpsertCustomerInput[] = []
 

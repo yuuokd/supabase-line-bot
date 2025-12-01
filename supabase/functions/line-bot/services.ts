@@ -37,8 +37,8 @@ export class WebhookService {
   ) {}
 
   // 受信イベントを種別ごとにハンドラへ振り分ける。未知タイプは無視。
+  // 想定利用: Webhook で受け取った events 配列を順に処理する入口。
   async handleEvent(event: LineEvent) {
-    // Dispatch LINE event types to dedicated handlers; unknown types are ignored.
     switch (event.type) {
       case "follow":
         // 友だち追加。顧客を upsert し、初回ストーリーとアンケートを開始
@@ -52,7 +52,7 @@ export class WebhookService {
         await this.handlePostback(event)
         break
       case "message":
-        // free_text 回答待ちのときのみテキストを回答として処理
+        // 記述式回答待ちのときのみテキストを回答として処理
         await this.handleMessage(event)
         break
       default:
@@ -62,8 +62,8 @@ export class WebhookService {
 
   // follow: 顧客レコードを upsert し、初回プロフィールストーリー入口ノードを push。
   // 入口ノードに紐づくアンケートがあれば開始ボタン用 postback を差し込む。
+  // 利用シーン: LINE で友だち追加された瞬間にプロフィール登録ストーリーを開始させる。
   private async handleFollow(event: LineEvent) {
-    // Start or restart the initial profile story for a user who just followed.
     const lineUserId = event.source?.userId
     if (!lineUserId) return
     const profile = await this.deps.lineClient.getProfile(lineUserId)
@@ -85,6 +85,7 @@ export class WebhookService {
       return
     }
 
+    // 4) user_flows を入口ノードにセットし in_progress にする
     await this.deps.userFlowDao.upsertFlow(
       customer.id,
       story.id,
@@ -98,6 +99,7 @@ export class WebhookService {
       : null
 
     if (survey) {
+      // 6) アンケートがあればセッションを初期化（current_order_index=0）
       await this.deps.surveyDao.upsertSession(
         survey.id,
         customer.id,
@@ -114,7 +116,7 @@ export class WebhookService {
       return
     }
 
-    // 初回ノードは content_text_only で Push し、アンケート開始用 postback を付与
+    // 7) 初回ノードは content_text_only で Push し、アンケート開始用 postback を付与
     const message = this.deps.flexBuilder.buildContentMessage(template, {
       title: entryNode.title ?? "お知らせ",
       bodyText: entryNode.body_text ?? "",
@@ -142,16 +144,17 @@ export class WebhookService {
     )
   }
 
+
+  // unfollow: 顧客レコードのis_blocked/opt_in を下げて配信対象から外す。
   private async handleUnfollow(event: LineEvent) {
-    // Mark the user as blocked when they unfollow.
     const lineUserId = event.source?.userId
     if (!lineUserId) return
     await this.deps.customerDao.markBlocked(lineUserId)
   }
 
   // postback: survey の開始/回答/記述開始、フロー確認を action ごとに分岐。
+  // 利用シーン: ボタン押下時の postback.data を action に応じて個別処理へ渡す。
   private async handlePostback(event: LineEvent) {
-    // Postback covers survey navigation, free-text starts, and flow completion.
     if (!event.postback?.data) return
     const payload = this.parsePostback(event.postback.data)
     if (!payload) return
@@ -163,6 +166,7 @@ export class WebhookService {
 
     switch (payload.action) {
       case "start_survey":
+        // ボタンからアンケートを開始（orderIndex 未指定なら 1 問目）
         await this.sendQuestion(
           payload.surveyId,
           payload.orderIndex ?? 1,
@@ -172,6 +176,7 @@ export class WebhookService {
         )
         break
       case "answer":
+        // 選択肢回答を保存して次へ進める
         await this.handleAnswerPostback(
           payload,
           customer,
@@ -179,9 +184,11 @@ export class WebhookService {
         )
         break
       case "start_free_text":
+        // 記述式の回答待ちに遷移
         await this.handleStartFreeText(payload, customer, event.replyToken)
         break
       case "complete_flow":
+        // アンケート無しノードの確認ボタン押下時の応答
         await this.handleCompleteFlow(payload, customer, event.replyToken)
         break
       default:
@@ -189,9 +196,9 @@ export class WebhookService {
     }
   }
 
-  // 通常メッセージは free_text 回答待ちのセッションにのみ利用し、それ以外は無視。
+  // 通常メッセージのハンドラ。通常メッセージは free_text 回答待ちのセッションにのみ利用し、それ以外は無視。
+  // 利用シーン: 記述式質問で「入力を開始」postback を押した後のテキスト回答を保存する。
   private async handleMessage(event: LineEvent) {
-    // Free-text answer handler when waiting for text response in a survey.
     const text = event.message?.text ?? ""
     if (!text) return
     const lineUserId = event.source?.userId
@@ -204,7 +211,7 @@ export class WebhookService {
     )
     if (!activeSession) return
 
-    // Next question is current_order_index + 1
+    // 次の質問番号は current_order_index + 1
     const nextOrderIndex = (activeSession.current_order_index ?? 0) + 1
     const question = await this.deps.surveyDao.getQuestionByOrder(
       activeSession.survey_id,
@@ -228,6 +235,7 @@ export class WebhookService {
     })
   }
 
+  // postback.data（文字列）を JSON としてパースし、失敗時は null を返す。
   private parsePostback(data: string): PostbackPayload | null {
     try {
       return JSON.parse(data) as PostbackPayload
@@ -237,11 +245,13 @@ export class WebhookService {
     }
   }
 
+  // 選択肢 postback の回答を保存して次へ進めるハンドラ。
   private async handleAnswerPostback(
     payload: PostbackPayload,
     customer: Customer,
     replyToken?: string,
   ) {
+    // 利用シーン: ボタン回答（postback）を受けたときに回答を保存し次へ進める。
     if (!payload.surveyId || !payload.questionId) return
     const question = await this.deps.surveyDao.getQuestionById(
       payload.questionId,
@@ -266,6 +276,7 @@ export class WebhookService {
     })
   }
 
+  // 記述式質問の「入力を開始」ボタン押下時に呼ばれるハンドラ。
   private async handleStartFreeText(
     payload: PostbackPayload,
     customer: Customer,
@@ -291,14 +302,14 @@ export class WebhookService {
     }
   }
 
-  // アンケートなし message_node の確認ボタン押下時。ステータスは維持しサンクスのみ返す。
+  // アンケートなし message_node の確認ボタン押下時のハンドラ。ステータスは維持しサンクスのみ返す。
   private async handleCompleteFlow(
     payload: PostbackPayload,
     customer: Customer,
     replyToken?: string,
   ) {
     if (!payload.storyId) return
-    // Keep status/schedule unchanged; only acknowledge.
+    // ステータスやスケジュールはいじらず、確認メッセージのみ返す。
     const thankYou = { type: "text", text: "ご確認ありがとうございました。" }
     if (replyToken) {
       await this.deps.lineClient.reply(replyToken, [thankYou])
@@ -307,6 +318,7 @@ export class WebhookService {
     }
   }
 
+  // 1回答を保存し、次の質問へ進むか完了処理を行う。
   private async persistAnswerAndStepNext(
     params: {
       surveyId: string
@@ -319,7 +331,9 @@ export class WebhookService {
   ) {
     const { surveyId, customer, question, optionId, value, replyToken } =
       params
-    // Persist one answer, advance to the next question, or finish the flow.
+    // フロー:
+    // 1) セッションを取得/作成 → 2) 回答ヘッダを取得/作成 → 3) 回答明細を保存/更新
+    // 4) セッション進行度を更新 → 5) 次質問を送信 or 完了処理
     const session = await this.deps.surveyDao.getSession(
       surveyId,
       customer.id,
@@ -342,7 +356,7 @@ export class WebhookService {
     )
     if (!response) return
 
-    // University handling: record selection immediately.
+    // 大学選択: 「その他」以外なら university_id を即保存、記述式はフリーテキストを登録して保存
     if (question.order_index === 3 && value && !this.isOtherUniversity(value)) {
       await this.deps.customerDao.updateProfile(customer.id, {
         university_id: value,
@@ -372,15 +386,15 @@ export class WebhookService {
       "in_progress",
     )
 
-    // Determine next question (skip Q4 if university chosen and not "その他")
+    // 次の質問を決める（大学選択で「その他」以外なら Q4 をスキップする）
     let nextOrderIndex = question.order_index + 1
     let sessionIndex = question.order_index
     if (question.order_index === 3 && value && !this.isOtherUniversity(value)) {
-      nextOrderIndex = 5 // skip free text
-      sessionIndex = 4 // consider skipped question handled
+      nextOrderIndex = 5 // 「その他」以外は記述式(Q4)をスキップして Q5 へ
+      sessionIndex = 4 // スキップ分も回答済みとして扱うため 4 を記録
     }
     if (question.order_index === 4 && this.isOtherUniversity(value)) {
-      // If still marked OTHER, proceed to Q5 (safety)
+      // まだ OTHER のままなら安全側で Q5 に進む
       nextOrderIndex = 5
       sessionIndex = 4
     }
@@ -406,7 +420,7 @@ export class WebhookService {
       return
     }
 
-    // Completed
+    // 全問回答完了時の処理
     await this.deps.surveyDao.updateSessionProgress(
       ensuredSession.id,
       sessionIndex,
@@ -445,6 +459,8 @@ export class WebhookService {
     }
   }
 
+  
+  // 次に送るべき質問を Flex メッセージとして組み立て、reply または push で配信する。
   private async sendQuestion(
     surveyId: string,
     orderIndex: number,
@@ -453,6 +469,7 @@ export class WebhookService {
     replyToken?: string,
     lastValue?: string | null,
   ) {
+    // orderIndex で質問を取得し、テンプレート種別に応じてビルダーを使い分ける。
     const question = await this.deps.surveyDao.getQuestionByOrder(
       surveyId,
       orderIndex,
@@ -545,6 +562,8 @@ export class WebhookService {
     }
   }
 
+  // 質問に埋め込む選択肢を生成。まず survey_options が定義されていればそれを優先。
+  // 無ければ質問 order_index ごとにマスタから動的生成し、取得できない場合はエラー選択肢を返す。
   private async buildOptionsForQuestion(
     question: SurveyQuestion,
     surveyId: string,
@@ -558,7 +577,7 @@ export class WebhookService {
       orderIndex: question.order_index,
     }
 
-    // Prefer survey_options tied to the question_id if available.
+    // survey_options（question_id に紐づく選択肢）があればそれを採用
     const predefinedOptions = await this.deps.surveyDao.getOptions(
       question.id,
     )
@@ -599,7 +618,7 @@ export class WebhookService {
       }
       case 3: {
         const universities = await this.deps.masterDao.getUniversities(12)
-        // TODO: paginate universities beyond 12 choices when UX is defined.
+        // TODO: 12件以上の大学がある場合のページネーションは後続検討
         const baseOptions = universities.map((univ) => {
           const isOther = univ.name === "その他"
           return {
@@ -611,7 +630,7 @@ export class WebhookService {
             },
           }
         })
-        // Add "その他" option for free text path
+        // フリーテキスト用に「その他」が無ければ追加
         const hasOther = baseOptions.some((
           opt,
         ) => opt.label === "その他" || opt.data.optionValue === "OTHER")
@@ -639,7 +658,7 @@ export class WebhookService {
       case 6: {
         const kanaGroup = lastValue
         if (!kanaGroup) {
-          // fallback: attempt to read latest answer for Q5
+          // Q5 の回答を取り直してグループを特定するフォールバック
           const answers = await this.deps.surveyDao.getAnswersBySurveyAndCustomer(
             surveyId,
             customerId,
@@ -671,15 +690,20 @@ export class WebhookService {
         }))
       }
       default:
-        // TODO: add other dynamic generations when story expands
+        // TODO: 質問が増えた場合はここに候補生成を追加
         return []
     }
   }
 
+
+  // アンケート完了後、回答内容を customers のプロフィールに反映する。
+  // 対応項目: Q1 学年, Q2 専攻, Q3/Q4 大学, Q6 都道府県, Q7 配信許諾（opt_in）
   private async updateCustomerProfileFromSurvey(
     surveyId: string,
     customerId: string,
   ) {
+    // 利用シーン: アンケート完了後、回答内容を customers のプロフィールに反映する。
+    // 対応項目: Q1 学年, Q2 専攻, Q3/Q4 大学, Q6 都道府県, Q7 配信許諾（opt_in）
     const answers = await this.deps.surveyDao.getAnswersBySurveyAndCustomer(
       surveyId,
       customerId,
@@ -714,21 +738,24 @@ export class WebhookService {
       updates["is_blocked"] = optInValue === "yes" ? false : updates["is_blocked"]
     }
 
-    // TODO: Q3/Q4 university handling when option outside catalog is supported
+    // TODO: Q3/Q4 でカタログ外の大学をより丁寧に扱う場合はここに処理を追加する
 
     if (Object.keys(updates).length > 0) {
       await this.deps.customerDao.updateProfile(customerId, updates)
     }
   }
 
+  // 大学選択の値が「その他」系かどうかを判定するヘルパー
   private isOtherUniversity(value?: string | null): boolean {
     return value === "OTHER" || value === "その他"
   }
 
+  // 次回配信の予定日時を決めるユーティリティ。
+  // 現在から指定日数後の 0:00（UTC 基準のまま）を返す。
   private scheduleAfterDays(days: number): Date {
     const d = new Date()
     d.setDate(d.getDate() + days)
-    d.setHours(0, 0, 0, 0) // schedule at 0:00 utc
+    d.setHours(0, 0, 0, 0) // 0:00 UTC に合わせる
     return d
   }
 }

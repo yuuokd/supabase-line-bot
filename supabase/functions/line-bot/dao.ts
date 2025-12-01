@@ -109,10 +109,11 @@ export class CustomerDAO {
   }
 }
 
-// ストーリーとノード関連のDAO
+// ストーリーとノード関連のDAO（ストーリー特定・入口ノード特定・任意ノード取得）
 export class StoryDAO {
   constructor(private client: SupabaseClient) {}
 
+  // タイトルでストーリーを1件取得。初回プロフィールストーリーの特定に利用。
   async findByTitle(title: string): Promise<Story | null> {
     const { data, error } = await this.client
       .from("stories")
@@ -127,6 +128,7 @@ export class StoryDAO {
     return data as Story
   }
 
+  // prev_node_id が null のノード（入口ノード）を1件取得。ストーリーの開始地点を決める。
   async findEntryNode(storyId: string): Promise<MessageNode | null> {
     const { data, error } = await this.client
       .from("message_nodes")
@@ -143,6 +145,7 @@ export class StoryDAO {
     return data as MessageNode
   }
 
+  // ノードIDで message_nodes を1件取得。次ノードへの遷移やスケジューラ配信で利用。
   async getNodeById(id: string): Promise<MessageNode | null> {
     const { data, error } = await this.client
       .from("message_nodes")
@@ -161,6 +164,7 @@ export class StoryDAO {
 export class FlexTemplateDAO {
   constructor(private client: SupabaseClient) {}
 
+  // flex_template を ID で取得。ノードに紐づくテンプレート差し替え用。
   async findById(id: string): Promise<FlexTemplate | null> {
     const { data, error } = await this.client
       .from("flex_templates")
@@ -174,6 +178,7 @@ export class FlexTemplateDAO {
     return data as FlexTemplate
   }
 
+  // テンプレートを name で取得。特定のテンプレ利用時の参照に使う。
   async findByName(name: string): Promise<FlexTemplate | null> {
     const { data, error } = await this.client
       .from("flex_templates")
@@ -192,6 +197,7 @@ export class FlexTemplateDAO {
 export class UserFlowDAO {
   constructor(private client: SupabaseClient) {}
 
+  // customer×story で1件 upsert。初回ストーリー開始や再開時に利用。
   async upsertFlow(
     customerId: string,
     storyId: string,
@@ -215,6 +221,7 @@ export class UserFlowDAO {
     if (error) console.error({ reason: "UserFlowDAO.upsertFlow", error })
   }
 
+  // フローを completed にし、スケジュールをクリア。全ノード配信完了時に利用。
   async completeFlow(customerId: string, storyId: string): Promise<void> {
     const { error } = await this.client
       .from("user_flows")
@@ -228,6 +235,7 @@ export class UserFlowDAO {
     if (error) console.error({ reason: "UserFlowDAO.completeFlow", error })
   }
 
+  // 次回配信予定のみを更新。配信直後に「4日後20時」をセットするなどで利用。
   async updateSchedule(
     customerId: string,
     storyId: string,
@@ -244,6 +252,7 @@ export class UserFlowDAO {
     if (error) console.error({ reason: "UserFlowDAO.updateSchedule", error })
   }
 
+  // flowId で現在ノード・次配信日時・ステータスをまとめて更新。スケジューラ配信時などに利用。
   async updateCurrentNodeAndSchedule(
     flowId: string,
     nextNodeId: string | null,
@@ -264,6 +273,8 @@ export class UserFlowDAO {
     }
   }
 
+  // customer_id と story_id で現在ノード・スケジュール・ステータスを更新。
+  // アンケート完了後に次ノードへ進めるときに利用。
   async updateFlowByCustomerAndStory(
     customerId: string,
     storyId: string,
@@ -286,6 +297,8 @@ export class UserFlowDAO {
     }
   }
 
+  // next_scheduled_at が now 以前で、かつ opt_in で in_progress なフローを取得。
+  // スケジューラで配信対象を絞るために利用。
   async findDueFlows(nowIso: string) {
     const { data, error } = await this.client
       .from("user_flows")
@@ -338,6 +351,7 @@ export class StoryTargetDAO {
 export class SurveyDAO {
   constructor(private client: SupabaseClient) {}
 
+  // message_nodes.node_id からアンケートを特定。ノードに紐づくアンケート開始時に利用。
   async findByNodeId(nodeId: string): Promise<Survey | null> {
     const { data, error } = await this.client
       .from("surveys")
@@ -351,6 +365,7 @@ export class SurveyDAO {
     return data as Survey
   }
 
+  // survey_id でアンケートを取得。story_id を辿る用途にも使う。
   async findById(id: string): Promise<Survey | null> {
     const { data, error } = await this.client.from("surveys").select("*").eq(
       "id",
@@ -363,6 +378,7 @@ export class SurveyDAO {
     return data as Survey
   }
 
+  // survey_id から story_id を取得。フロー完了更新時などに利用。
   async getStoryIdBySurveyId(surveyId: string): Promise<string | null> {
     const { data, error } = await this.client
       .from("surveys")
@@ -378,6 +394,7 @@ export class SurveyDAO {
     return (data as any)?.message_nodes?.story_id ?? null
   }
 
+  // order_index に対応する質問を取得。次質問の取得や free_text 判定に利用。
   async getQuestionByOrder(
     surveyId: string,
     orderIndex: number,
@@ -396,6 +413,7 @@ export class SurveyDAO {
     return data as SurveyQuestion
   }
 
+  // アンケートの質問リストを順序付きで取得。全体確認・デバッグ用途。
   async listQuestions(surveyId: string): Promise<SurveyQuestion[]> {
     const { data, error } = await this.client
       .from("survey_questions")
@@ -409,6 +427,7 @@ export class SurveyDAO {
     return (data ?? []) as SurveyQuestion[]
   }
 
+  // question_id で質問を取得。postback からの逆引きに利用。
   async getQuestionById(id: string): Promise<SurveyQuestion | null> {
     const { data, error } = await this.client
       .from("survey_questions")
@@ -423,6 +442,7 @@ export class SurveyDAO {
     return data as SurveyQuestion
   }
 
+  // 質問に紐づく選択肢を order_index 順で取得。プレースホルダ差し込み用。
   async getOptions(questionId: string): Promise<SurveyOption[]> {
     const { data, error } = await this.client
       .from("survey_options")
@@ -436,6 +456,7 @@ export class SurveyDAO {
     return (data ?? []) as SurveyOption[]
   }
 
+  // survey_id × customer_id でセッションを取得。現在の進行状態を参照する。
   async getSession(
     surveyId: string,
     customerId: string,
@@ -454,6 +475,7 @@ export class SurveyDAO {
     return data as SurveySession
   }
 
+  // in_progress / awaiting_text のセッションを最新更新順で取得。free_text 待ち判定などに利用。
   async findActiveSession(customerId: string): Promise<SurveySession | null> {
     const { data, error } = await this.client
       .from("survey_sessions")
@@ -470,6 +492,7 @@ export class SurveyDAO {
     return data as SurveySession
   }
 
+  // セッションを upsert（作成/更新）し、current_order_index と status を反映。
   async upsertSession(
     surveyId: string,
     customerId: string,
@@ -498,6 +521,7 @@ export class SurveyDAO {
     return data as SurveySession
   }
 
+  // セッションの現在の order_index と status を更新。回答保存後に進行度を進める。
   async updateSessionProgress(
     sessionId: string,
     currentOrderIndex: number,
@@ -516,6 +540,7 @@ export class SurveyDAO {
     }
   }
 
+  // セッションの status のみ更新。記述式開始など簡易状態変更に利用。
   async updateSessionStatus(sessionId: string, status: string): Promise<void> {
     const { error } = await this.client
       .from("survey_sessions")
@@ -527,6 +552,7 @@ export class SurveyDAO {
     if (error) console.error({ reason: "SurveyDAO.updateSessionStatus", error })
   }
 
+  // 既存の回答ヘッダを取得。無い場合は null を返す。
   async findResponse(
     surveyId: string,
     customerId: string,
@@ -545,6 +571,7 @@ export class SurveyDAO {
     return data as SurveyResponse
   }
 
+  // 回答ヘッダを新規作成。既存チェックは行わない。
   async createResponse(
     surveyId: string,
     customerId: string,
@@ -565,6 +592,7 @@ export class SurveyDAO {
     return data as SurveyResponse
   }
 
+  // 回答ヘッダを取得し、無ければ作成。回答保存前に必ず呼ぶ。
   async upsertResponse(
     surveyId: string,
     customerId: string,
@@ -574,6 +602,7 @@ export class SurveyDAO {
     return await this.createResponse(surveyId, customerId)
   }
 
+  // 回答ヘッダに submitted_at をセットし、完了を記録。
   async markResponseSubmitted(responseId: string): Promise<void> {
     const { error } = await this.client
       .from("survey_responses")
@@ -584,6 +613,7 @@ export class SurveyDAO {
     }
   }
 
+  // 問題単位の回答を保存 or 更新（option_id / text_answer のいずれか）。
   async saveOrUpdateAnswer(
     responseId: string,
     questionId: string,
@@ -627,6 +657,7 @@ export class SurveyDAO {
     }
   }
 
+  // 指定アンケート・顧客の回答一覧を、質問の order_index 付きで取得。プロフィール反映時に利用。
   async getAnswersBySurveyAndCustomer(
     surveyId: string,
     customerId: string,
@@ -666,6 +697,7 @@ export class SurveyDAO {
 export class MasterDataDAO {
   constructor(private client: SupabaseClient) {}
 
+  // 学年マスタを order_index 順に取得（最大 limit 件）。質問 Q1 の選択肢生成に利用。
   async getGrades(limit = 12) {
     const { data, error } = await this.client
       .from("grades")
@@ -679,6 +711,7 @@ export class MasterDataDAO {
     return data ?? []
   }
 
+  // 専攻マスタを order_index 順に取得。質問 Q2 の選択肢生成に利用。
   async getMajors(limit = 12) {
     const { data, error } = await this.client
       .from("majors")
@@ -692,6 +725,7 @@ export class MasterDataDAO {
     return data ?? []
   }
 
+  // 大学マスタを order_index → name 順に取得。質問 Q3 の選択肢生成に利用。
   async getUniversities(limit = 12) {
     const { data, error } = await this.client
       .from("universities")
@@ -706,6 +740,8 @@ export class MasterDataDAO {
     return data ?? []
   }
 
+  // 自由記述の大学名を既存重複チェック後、無ければ order_index を連番で採番して登録。
+  // Q4 の自由入力回答を customers.university_id に反映するために利用。
   async upsertFreeTextUniversity(name: string): Promise<string | null> {
     if (!name) return null
     // Try to find existing by exact name
@@ -746,6 +782,7 @@ export class MasterDataDAO {
     return data?.id ?? null
   }
 
+  // 五十音グループで都道府県を取得。質問 Q6 の選択肢生成に利用。
   async getPrefecturesByGroup(
     kanaGroup: string,
     limit = 12,
