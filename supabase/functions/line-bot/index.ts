@@ -10,6 +10,7 @@ import {
   StoryTargetDAO,
   SurveyDAO,
   UserFlowDAO,
+  MessageNodeCardDAO,
 } from "./dao.ts"
 import { LineClient } from "./lineClient.ts"
 import { FlexMessageBuilder } from "./flexBuilder.ts"
@@ -32,6 +33,7 @@ const service = new WebhookService({
   masterDao: new MasterDataDAO(supabase),
   lineClient,
   flexBuilder: new FlexMessageBuilder(),
+  cardDao: new MessageNodeCardDAO(supabase),
 })
 
 console.log("LINE webhook function booted")

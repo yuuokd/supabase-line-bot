@@ -5,12 +5,12 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 // - 配信対象は line-bot 側と同じロジックで Flex を構築し、次ノードへ進める
 import { supabaseClient } from "../line-bot/supabaseClient.ts"
 import {
-  CustomerDAO,
   FlexTemplateDAO,
   StoryDAO,
   StoryTargetDAO,
   SurveyDAO,
   UserFlowDAO,
+  MessageNodeCardDAO,
 } from "../line-bot/dao.ts"
 import { FlexMessageBuilder } from "../line-bot/flexBuilder.ts"
 import { LineClient } from "../line-bot/lineClient.ts"
@@ -26,8 +26,8 @@ const storyDao = new StoryDAO(supabase)
 const flexTemplateDao = new FlexTemplateDAO(supabase)
 const storyTargetDao = new StoryTargetDAO(supabase)
 const surveyDao = new SurveyDAO(supabase)
-const customerDao = new CustomerDAO(supabase)
 const flexBuilder = new FlexMessageBuilder()
+const cardDao = new MessageNodeCardDAO(supabase)
 
 // next_scheduled_at が期限を過ぎているフローを取得し、次ノードを push する。
 // 流れ: 期限切れ取得 → 次ノード無しなら completed → あれば Flex 生成して配信 → story_targets ログ → current_node と schedule を更新
@@ -39,7 +39,10 @@ async function processDueFlows() {
 
   for (const flow of dueFlows) {
     try {
-      const nextNodeId = (flow.message_nodes as any)?.next_node_id
+      const currentNode = flow.current_node_id
+        ? await storyDao.getNodeById(flow.current_node_id)
+        : null
+      const nextNodeId = (currentNode as any)?.next_node_id
       if (!nextNodeId) {
         await flowDao.updateCurrentNodeAndSchedule(
           flow.id,
@@ -82,15 +85,18 @@ async function processDueFlows() {
         }
       }
 
-      const message = flexBuilder.buildContentMessage(template, {
-        title: (nextNode as any).title ?? "お知らせ",
-        bodyText: (nextNode as any).body_text ?? "",
-        imageUrl: (nextNode as any).image_url,
-        primaryLabel: "確認",
-        primaryDisplayText: "確認",
-        primaryData,
-        altText: (nextNode as any).title ?? "お知らせ",
-      })
+      const cards = await cardDao.listByNodeId((nextNode as any).id)
+      if (!cards.length) continue
+      const message = flexBuilder.buildContentFromCards(
+        template,
+        cards,
+        {
+          primaryLabel: "確認",
+          primaryDisplayText: "確認",
+          primaryData,
+          altText: cards[0]?.title ?? "お知らせ",
+        },
+      )
 
       const lineUserId = (flow.customers as any)?.line_user_id
       if (!lineUserId) continue

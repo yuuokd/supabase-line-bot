@@ -6,6 +6,7 @@ import {
   StoryTargetDAO,
   SurveyDAO,
   UserFlowDAO,
+  MessageNodeCardDAO,
 } from "./dao.ts"
 import { FlexMessageBuilder } from "./flexBuilder.ts"
 import { LineClient } from "./lineClient.ts"
@@ -35,6 +36,7 @@ export class WebhookService {
       masterDao: MasterDataDAO
       lineClient: LineClient
       flexBuilder: FlexMessageBuilder
+      cardDao: MessageNodeCardDAO
     },
   ) {}
 
@@ -118,23 +120,29 @@ export class WebhookService {
       return
     }
 
-    // 7) 初回ノードは content_text_only で Push し、アンケート開始用 postback を付与
-    const message = this.deps.flexBuilder.buildContentMessage(template, {
-      title: entryNode.title ?? "お知らせ",
-      bodyText: entryNode.body_text ?? "",
-      imageUrl: entryNode.image_url,
-      primaryLabel: firstQuestion ? "回答を始める" : "確認",
-      primaryDisplayText: firstQuestion ? "回答を始める" : "確認",
-      primaryData: firstQuestion
-        ? {
-          action: "start_survey",
-          surveyId: survey!.id,
-          questionId: firstQuestion.id,
-          orderIndex: firstQuestion.order_index,
-        }
-        : {},
-      altText: entryNode.title ?? "お知らせ",
-    })
+    // 7) カードを取得し、1件ならバブル、複数ならカルーセルを組み立てて Push 送信
+    const cards = await this.deps.cardDao.listByNodeId(entryNode.id)
+    if (!cards.length) {
+      console.error("No message_node_cards found for entry node", entryNode.id)
+      return
+    }
+    const message = this.deps.flexBuilder.buildContentFromCards(
+      template,
+      cards,
+      {
+        primaryLabel: firstQuestion ? "回答を始める" : "確認",
+        primaryDisplayText: firstQuestion ? "回答を始める" : "確認",
+        primaryData: firstQuestion
+          ? {
+            action: "start_survey",
+            surveyId: survey!.id,
+            questionId: firstQuestion.id,
+            orderIndex: firstQuestion.order_index,
+          }
+          : {},
+        altText: cards[0]?.title ?? "お知らせ",
+      },
+    )
 
     await this.deps.lineClient.push(lineUserId, [message])
     await this.deps.storyTargetDao.logSent(entryNode.id, customer.id, "sent")
@@ -312,7 +320,7 @@ export class WebhookService {
   ) {
     if (!payload.storyId) return
     // ステータスやスケジュールはいじらず、確認メッセージのみ返す。
-    const thankYou = { type: "text", text: "ご確認ありがとうございました。" }
+    const thankYou = { type: "text", text: "ご確認ありがとうございました！" }
     if (replyToken) {
       await this.deps.lineClient.reply(replyToken, [thankYou])
     } else {
@@ -454,12 +462,11 @@ export class WebhookService {
 
     if (storyId) {
       if (nextNodeId) {
-        await this.deps.userFlowDao.updateFlowByCustomerAndStory(
+        // 次ノードへの遷移はスケジューラで行うため、current_node_id は維持したままスケジュールのみ更新
+        await this.deps.userFlowDao.updateSchedule(
           customer.id,
           storyId,
-          nextNodeId,
           this.scheduleAfterDays(4).toISOString(),
-          "in_progress",
         )
       } else {
         await this.deps.userFlowDao.completeFlow(customer.id, storyId)

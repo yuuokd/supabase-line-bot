@@ -37,6 +37,13 @@ export interface MessageNode {
   prev_node_id?: string | null
   next_node_id?: string | null
   flex_template_id: string
+}
+
+// message_node_cards: 各ノード内のカード（バブル）内容
+export interface MessageNodeCard {
+  id: string
+  node_id: string
+  order_index: number
   title?: string | null
   body_text?: string | null
   image_url?: string | null

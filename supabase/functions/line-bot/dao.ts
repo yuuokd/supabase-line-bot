@@ -4,6 +4,7 @@ import {
   Customer,
   FlexTemplate,
   MessageNode,
+  MessageNodeCard,
   Story,
   Survey,
   SurveyOption,
@@ -106,6 +107,25 @@ export class CustomerDAO {
       .update({ ...fields, updated_at: new Date().toISOString() })
       .eq("id", customerId)
     if (error) console.error({ reason: "CustomerDAO.updateProfile", error })
+  }
+}
+
+// message_node_cards を取得する DAO（ノード内のバブル内容）
+export class MessageNodeCardDAO {
+  constructor(private client: SupabaseClient) {}
+
+  // node_id に紐づくカードを order_index 順に取得
+  async listByNodeId(nodeId: string): Promise<MessageNodeCard[]> {
+    const { data, error } = await this.client
+      .from("message_node_cards")
+      .select("*")
+      .eq("node_id", nodeId)
+      .order("order_index", { ascending: true })
+    if (error) {
+      console.error({ reason: "MessageNodeCardDAO.listByNodeId", error })
+      return []
+    }
+    return (data ?? []) as MessageNodeCard[]
   }
 }
 
@@ -310,8 +330,7 @@ export class UserFlowDAO {
         current_node_id,
         next_scheduled_at,
         status,
-        customers!inner(line_user_id,opt_in),
-        message_nodes!inner(id,next_node_id,flex_template_id,title,body_text,image_url)
+        customers!inner(line_user_id,opt_in)
       `,
       )
       .lte("next_scheduled_at", nowIso)

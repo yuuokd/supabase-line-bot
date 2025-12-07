@@ -8,6 +8,7 @@ type OptionPayload = {
 
 // Flex テンプレートのプレースホルダを差し込み、LINE メッセージを構築するビルダー。
 // - buildContentMessage: 通常コンテンツ配信用（タイトル/本文/画像＋ボタン）
+// - buildContentFromCards: message_node_cards を受け取り、1件ならバブル、複数ならカルーセルで返す
 // - buildMultiChoiceQuestion: 複数選択式アンケート（survey_multi_choice_12 前提）
 // - buildYesNoQuestion: Yes/No 質問（survey_yes_no 前提）
 // - buildFreeTextQuestion: 記述式開始ボタン付き質問（survey_free_text_with_postback 前提）
@@ -37,6 +38,82 @@ export class FlexMessageBuilder {
       "{PRIMARY_DISPLAY}":
         params.primaryDisplayText ?? params.primaryLabel ?? "回答する",
       "{IMAGE_URL}": params.imageUrl ?? "",
+    }
+
+    const filled = this.replacePlaceholders(bubble, replacements)
+    return this.toFlexMessage(
+      filled,
+      params.altText ?? params.title ?? "メッセージ",
+    )
+  }
+
+  // message_node_cards を元にバブルを生成し、1件なら単一バブル、複数ならカルーセルで返す
+  buildContentFromCards(
+    template: FlexTemplate,
+    cards: { title?: string | null; body_text?: string | null; image_url?: string | null }[],
+    params: {
+      primaryLabel?: string
+      primaryData?: Record<string, unknown>
+      primaryDisplayText?: string
+      altText?: string
+    },
+  ): LineMessage {
+    const bubbles = cards.map((card) =>
+      this.buildContentBubble(template, {
+        title: card.title ?? "お知らせ",
+        bodyText: card.body_text ?? "",
+        primaryLabel: params.primaryLabel,
+        primaryData: params.primaryData,
+        primaryDisplayText: params.primaryDisplayText,
+        imageUrl: card.image_url ?? null,
+        altText: params.altText ?? card.title ?? "お知らせ",
+      })
+    )
+
+    if (bubbles.length <= 1) {
+      return bubbles[0] ?? this.toFlexMessage(template.layout_json, "メッセージ")
+    }
+
+    return {
+      type: "flex",
+      altText: params.altText ?? cards[0]?.title ?? "メッセージ",
+      contents: {
+        type: "carousel",
+        contents: bubbles.map((b) => b.contents as Record<string, unknown>),
+      },
+    }
+  }
+
+  private buildContentBubble(
+    template: FlexTemplate,
+    params: {
+      title: string
+      bodyText: string
+      primaryLabel?: string
+      primaryData?: Record<string, unknown>
+      primaryDisplayText?: string
+      imageUrl?: string | null
+      altText?: string
+    },
+  ): LineMessage {
+    const bubble = this.deepClone(template.layout_json)
+    // 画像URLが無い場合や不正なスキームの場合は hero を取り除く（LINE側のバリデーション回避）
+    const safeImage = params.imageUrl &&
+      (params.imageUrl.startsWith("http://") ||
+        params.imageUrl.startsWith("https://"))
+      ? params.imageUrl
+      : null
+    if (!safeImage && (bubble as any).hero) {
+      delete (bubble as any).hero
+    }
+    const replacements: Record<string, string> = {
+      "{TITLE}": params.title,
+      "{BODY_TEXT}": params.bodyText,
+      "{PRIMARY_LABEL}": params.primaryLabel ?? "確認",
+      "{PRIMARY_DATA}": JSON.stringify(params.primaryData ?? {}),
+      "{PRIMARY_DISPLAY}":
+        params.primaryDisplayText ?? params.primaryLabel ?? "確認",
+      "{IMAGE_URL}": safeImage ?? "",
     }
 
     const filled = this.replacePlaceholders(bubble, replacements)
