@@ -740,11 +740,12 @@ export class MasterDataDAO {
     return data ?? []
   }
 
-  // 大学マスタを order_index → name 順に取得。質問 Q3 の選択肢生成に利用。
+  // 大学マスタを order_index → name 順に取得。service_enabled=true のみ取得（質問 Q3 の選択肢生成に利用）。
   async getUniversities(limit = 12) {
     const { data, error } = await this.client
       .from("universities")
       .select("id, name")
+      .eq("service_enabled", true)
       .order("order_index", { ascending: true })
       .order("name", { ascending: true })
       .limit(limit)
@@ -756,7 +757,7 @@ export class MasterDataDAO {
   }
 
   // 自由記述の大学名を既存重複チェック後、無ければ order_index を連番で採番して登録。
-  // Q4 の自由入力回答を customers.university_id に反映するために利用。
+  // service_enabled=false で登録し、Q4 の自由入力回答を customers.university_id に反映するために利用。
   async upsertFreeTextUniversity(name: string): Promise<string | null> {
     if (!name) return null
     // Try to find existing by exact name
@@ -787,6 +788,7 @@ export class MasterDataDAO {
       .insert({
         name,
         order_index: nextOrderIndex,
+        service_enabled: false,
       })
       .select("id")
       .single()
