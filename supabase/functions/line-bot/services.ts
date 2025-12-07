@@ -493,6 +493,23 @@ export class WebhookService {
     replyToken?: string,
     lastValue?: string | null,
   ) {
+    // メッセージ送信前にセッションを in_progress に戻す（完了済みや awaiting_text をリセットする）
+    const session = await this.deps.surveyDao.getSession(surveyId, customer.id)
+    if (session) {
+      await this.deps.surveyDao.updateSessionStatus(
+        session.id,
+        "in_progress",
+      )
+    } else {
+      const currentOrderIndex = Math.max(orderIndex - 1, 0)
+      await this.deps.surveyDao.upsertSession(
+        surveyId,
+        customer.id,
+        "in_progress",
+        currentOrderIndex,
+      )
+    }
+
     // orderIndex で質問を取得し、テンプレート種別に応じてビルダーを使い分ける。
     const question = await this.deps.surveyDao.getQuestionByOrder(
       surveyId,
