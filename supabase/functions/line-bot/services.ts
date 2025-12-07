@@ -17,6 +17,8 @@ import {
 } from "./types.ts"
 
 const PROFILE_STORY_TITLE = "初回プロフィール登録ストーリー"
+const PROFILE_SURVEY_TITLE = "初回プロフィール登録アンケート"
+let cachedProfileSurveyId: string | null = null
 
 type MessageRoute = "push" | "reply"
 
@@ -331,16 +333,25 @@ export class WebhookService {
   ) {
     const { surveyId, customer, question, optionId, value, replyToken } =
       params
+    // order_index と survey_id の組み合わせで次質問を特定するため、question に survey_id がある場合はそれを優先する
+    const targetSurveyId = question.survey_id ?? surveyId
+    // 初回プロフィールアンケートの survey_id をキャッシュ（タイトル検索で1度だけ取得）
+    if (!cachedProfileSurveyId) {
+      const profileSurvey = await this.deps.surveyDao.findByTitle(
+        PROFILE_SURVEY_TITLE,
+      )
+      cachedProfileSurveyId = profileSurvey?.id ?? null
+    }
     // フロー:
     // 1) セッションを取得/作成 → 2) 回答ヘッダを取得/作成 → 3) 回答明細を保存/更新
     // 4) セッション進行度を更新 → 5) 次質問を送信 or 完了処理
     const session = await this.deps.surveyDao.getSession(
-      surveyId,
+      targetSurveyId,
       customer.id,
     )
     const ensuredSession = session ??
       await this.deps.surveyDao.upsertSession(
-        surveyId,
+        targetSurveyId,
         customer.id,
         "in_progress",
         0,
@@ -351,23 +362,29 @@ export class WebhookService {
     }
 
     const response = await this.deps.surveyDao.upsertResponse(
-      surveyId,
+      targetSurveyId,
       customer.id,
     )
     if (!response) return
 
-    // 大学選択: 「その他」以外なら university_id を即保存、記述式はフリーテキストを登録して保存
-    if (question.order_index === 3 && value && !this.isOtherUniversity(value)) {
-      await this.deps.customerDao.updateProfile(customer.id, {
-        university_id: value,
-      })
-    }
-    if (question.order_index === 4 && value) {
-      const uniId = await this.deps.masterDao.upsertFreeTextUniversity(value)
-      if (uniId) {
+    // 大学選択の反映は初回プロフィールアンケートの場合のみ実施する
+    const isProfileSurvey = cachedProfileSurveyId !== null &&
+      targetSurveyId === cachedProfileSurveyId
+    if (isProfileSurvey) {
+      // 大学選択: 「その他」以外なら university_id を即保存
+      if (question.order_index === 3 && value && !this.isOtherUniversity(value)) {
         await this.deps.customerDao.updateProfile(customer.id, {
-          university_id: uniId,
+          university_id: value,
         })
+      }
+      // 記述式: フリーテキストを universities に upsert して university_id に保存
+      if (question.order_index === 4 && value) {
+        const uniId = await this.deps.masterDao.upsertFreeTextUniversity(value)
+        if (uniId) {
+          await this.deps.customerDao.updateProfile(customer.id, {
+            university_id: uniId,
+          })
+        }
       }
     }
 
@@ -400,7 +417,7 @@ export class WebhookService {
     }
 
     const nextQuestion = await this.deps.surveyDao.getQuestionByOrder(
-      surveyId,
+      targetSurveyId,
       nextOrderIndex,
     )
 
@@ -428,8 +445,8 @@ export class WebhookService {
     )
     await this.deps.surveyDao.markResponseSubmitted(response.id)
 
-    const storyId = await this.deps.surveyDao.getStoryIdBySurveyId(surveyId)
-    const surveyRecord = await this.deps.surveyDao.findById(surveyId)
+    const storyId = await this.deps.surveyDao.getStoryIdBySurveyId(targetSurveyId)
+    const surveyRecord = await this.deps.surveyDao.findById(targetSurveyId)
     const surveyNode = surveyRecord?.node_id
       ? await this.deps.storyDao.getNodeById(surveyRecord.node_id)
       : null

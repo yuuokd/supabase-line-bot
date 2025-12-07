@@ -351,6 +351,21 @@ export class StoryTargetDAO {
 export class SurveyDAO {
   constructor(private client: SupabaseClient) {}
 
+  // タイトルでアンケートを 1 件取得。特定のアンケートIDをキャッシュする際に利用。
+  async findByTitle(title: string): Promise<Survey | null> {
+    const { data, error } = await this.client
+      .from("surveys")
+      .select("*")
+      .eq("title", title)
+      .limit(1)
+      .maybeSingle()
+    if (error) {
+      console.error({ reason: "SurveyDAO.findByTitle", error })
+      return null
+    }
+    return data as Survey
+  }
+
   // message_nodes.node_id からアンケートを特定。ノードに紐づくアンケート開始時に利用。
   async findByNodeId(nodeId: string): Promise<Survey | null> {
     const { data, error } = await this.client
